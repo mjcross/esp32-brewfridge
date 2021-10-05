@@ -17,7 +17,7 @@
 #define RE_A_GPIO               26
 #define RE_B_GPIO               25
 #define RE_BTN_GPIO             27
-#define RE_EVENT_QUEUE_SIZE     5
+#define RE_EVENT_QUEUE_SIZE     10
 
 // UI
 //
