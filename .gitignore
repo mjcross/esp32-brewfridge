@@ -1,0 +1,10 @@
+build/
+esp-idf-lib/
+KiCad/library/
+*.md
+sdkconfig
+sdkconfig.old
+*.sublime-workspace
+.DS_Store
+.DS_Store?
+
