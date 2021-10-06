@@ -6,5 +6,6 @@
 extern hd44780_t lcd;
 void lcd_init(void);
 void lcd_reset(void);
+void lcd_clear(void);
 
 #endif // LCD_H

@@ -21,7 +21,7 @@
 
 // UI
 //
-#define UI_TIMEOUT_MS           5000      // timeout on temp setting mode
+#define UI_TIMEOUT_MS           250      // timeout on temp setting mode
 
 // power control
 //

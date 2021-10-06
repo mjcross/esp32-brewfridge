@@ -11,23 +11,8 @@
 
 const char* TAG = LOG_TAG;
 
-
-void lcd_test(void *p_param)
-{
-    lcd_init();
-    ui_test();
-    while(true) {
-        vTaskDelay(500 / portTICK_PERIOD_MS);
-    }
-}
-
-
 void app_main()
 {
-    ESP_LOGI(TAG, "starting tasks");
-    if (xTaskCreate(lcd_test, "lcd test", configMINIMAL_STACK_SIZE * 4, NULL, 10, NULL) != pdPASS) {
-        ESP_LOGE(TAG, "xTaskCreate() failed: lcd task");
-    }
     if (xTaskCreate(ui_task, "ui_task", configMINIMAL_STACK_SIZE * 4, NULL, 7, NULL) != pdPASS) {
         ESP_LOGE(TAG, "xTaskCreate() failed: ui task");
     }
