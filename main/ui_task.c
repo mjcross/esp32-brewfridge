@@ -225,10 +225,13 @@ static void ui_event(enum ui_event_t event, int value_change) {
 
     switch(event) {
         case UI_EVENT_BTN_PRESS:
-            if (ui_state.mode == UI_MODE_TEMP_EDIT) {
+            if (ui_state.mode == UI_MODE_SLEEP) {
+                hd44780_switch_backlight(&lcd, true);                   // wake from sleep
+            } else if (ui_state.mode == UI_MODE_TEMP_EDIT) {
                 temp_field[ui_state.item].value = ui_state.value;       // 'commit' current UI value
                 ui_state.item = (ui_state.item + 1) % num_temp_fields;  // advance to next setting
             }
+
             ui_state.mode = next_state_btn_press[ui_state.mode];
             new_mode();
             break;
@@ -323,6 +326,11 @@ static void ui_event(enum ui_event_t event, int value_change) {
             }
             break;
 
+        case UI_EVENT_SLEEP:
+            ui_state.mode = UI_MODE_SLEEP;
+            hd44780_switch_backlight(&lcd, false);
+            break;
+
         default:
             ESP_LOGE(TAG, "unrecognised event");
             break;
@@ -338,8 +346,9 @@ void ui_task(void *pParams) {
     new_mode();         // set up first screen
 
     static int long_timeout_count;
+    static int sleep_timeout_count;
     for(;;) {
-        if (xQueueReceive(encoder_event_queue, &e, pdMS_TO_TICKS(250)) == pdTRUE) {
+        if (xQueueReceive(encoder_event_queue, &e, pdMS_TO_TICKS(UI_BLINK_MS)) == pdTRUE) {
 
             switch (e.type) {                               // handle event
                 case RE_ET_BTN_CLICKED:
@@ -358,15 +367,21 @@ void ui_task(void *pParams) {
                     break;
             }
 
-            long_timeout_count = 0;                         // reset inactivity timer
+            long_timeout_count = 0;                         // reset inactivity timers
+            sleep_timeout_count = 0;
 
         } else {
-            ui_state.timeout_count = (ui_state.timeout_count + 1) % 4;
+            ui_state.timeout_count = (ui_state.timeout_count + 1) % UI_BLINKS_PER_FLASH;
             ui_event(UI_EVENT_BLINK, 0);
 
-            long_timeout_count = (long_timeout_count + 1) % 20;
+            long_timeout_count = (long_timeout_count + 1) % UI_BLINKS_PER_TIMEOUT;
             if (long_timeout_count == 0) {
                 ui_event(UI_EVENT_TIMEOUT, 0);
+            }
+
+            sleep_timeout_count = (sleep_timeout_count + 1) % UI_BLINKS_PER_SLEEP;
+            if (sleep_timeout_count == 0) {
+                ui_event(UI_EVENT_SLEEP, 0);
             }
         }
     }
