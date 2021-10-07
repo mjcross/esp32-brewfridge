@@ -26,6 +26,16 @@
     "ui_mode_sensor_commit"
 };*/
 
+enum ui_mode_t {
+    UI_MODE_SPLASH = 0,
+    UI_MODE_SLEEP,
+    UI_MODE_STATUS,
+    UI_MODE_TEMP_ITEM,
+    UI_MODE_TEMP_EDIT,
+    UI_MODE_SENSOR_ITEM,
+    UI_MODE_SENSOR_EDIT
+};
+
 static const enum ui_mode_t next_state_btn_press[] = {
     UI_MODE_STATUS,                 // splash -> status
     UI_MODE_STATUS,                 // sleep -> status
@@ -185,13 +195,17 @@ static void new_mode() {
             hd44780_puts(&lcd, "TEMPERATURE SETTINGS");
             for (int i = 0; i < num_temp_fields; i++) {
                 struct temp_field_t sf = temp_field[i];
-                hd44780_gotoxy(&lcd, sf.title_x, sf.title_y);
-                hd44780_puts(&lcd, sf.title);
+                if (i != ui_state.item) {                               // blink first item title
+                    hd44780_gotoxy(&lcd, sf.title_x, sf.title_y);
+                    hd44780_puts(&lcd, sf.title);
+                }
                 hd44780_gotoxy(&lcd, sf.data_x, sf.data_y);
                 snprintf(buf, sizeof(buf), "%4.1f", sf.value / 10.0);
                 hd44780_puts(&lcd, buf);
             }
             ui_state.value = temp_field[ui_state.item].value;
+            ui_state.blink_is_hidden = true;
+            ui_state.timeout_count = 0;         // start new 'blink' cycle
             break;
 
         case UI_MODE_TEMP_EDIT:
