@@ -146,22 +146,10 @@ static void encoder_init(void) {
 }
 
 
-void ui_test() {
-    for (int i = 0; i < num_sensor_fields; i++) {
-        struct sensor_field_t sf = sensor_field[i];
-        hd44780_gotoxy(&lcd, sf.title_x, sf.title_y);
-        hd44780_puts(&lcd, sf.title);
-        hd44780_gotoxy(&lcd, sf.data_x, sf.data_y);
-        hd44780_puts(&lcd, "--.-");
-    }
-};
-
-
 static void new_mode() {
     switch (ui_state.mode) {
         case UI_MODE_SPLASH:
-            lcd_clear();
-            //                  01234567890123456789
+            hd44780_clear(&lcd);
             hd44780_gotoxy(&lcd, 5, 1);
             hd44780_puts(&lcd, "TETB dual");
             hd44780_gotoxy(&lcd, 2, 2);
@@ -169,12 +157,12 @@ static void new_mode() {
             break;
 
         case UI_MODE_SLEEP:
-            lcd_clear();
+            hd44780_clear(&lcd);
             hd44780_puts(&lcd, "sleep");
             break;
 
         case UI_MODE_STATUS:
-            lcd_clear();
+            hd44780_clear(&lcd);
             //                  01234567890123456789
             hd44780_puts(&lcd, "FRIDGE  1  FRIDGE  2");
             for (int i = 0; i < num_sensor_fields; i++) {
@@ -190,41 +178,41 @@ static void new_mode() {
             break;
 
         case UI_MODE_TEMP_ITEM:
-            lcd_clear();
+            hd44780_clear(&lcd);
             //                  01234567890123456789
             hd44780_puts(&lcd, "TEMPERATURE SETTINGS");
             for (int i = 0; i < num_temp_fields; i++) {
                 struct temp_field_t sf = temp_field[i];
-                if (i != ui_state.item) {                               // blink first item title
-                    hd44780_gotoxy(&lcd, sf.title_x, sf.title_y);
-                    hd44780_puts(&lcd, sf.title);
-                }
+                hd44780_gotoxy(&lcd, sf.title_x, sf.title_y);
+                hd44780_puts(&lcd, sf.title);
                 hd44780_gotoxy(&lcd, sf.data_x, sf.data_y);
                 snprintf(buf, sizeof(buf), "%4.1f", sf.value / 10.0);
                 hd44780_puts(&lcd, buf);
             }
             ui_state.value = temp_field[ui_state.item].value;
-            ui_state.blink_is_hidden = true;
-            ui_state.timeout_count = 0;         // start new 'blink' cycle
+            hd44780_gotoxy(&lcd, temp_field[ui_state.item].data_x - 1, temp_field[ui_state.item].data_y);
+            hd44780_putc(&lcd, 0x7e);
+            ui_state.blink_is_hidden = false;
+            ui_state.timeout_count = 2;                                 // start new 'blink' cycle
             break;
 
         case UI_MODE_TEMP_EDIT:
-            // NB: don't clear the screen
+            // NB: no need to clear the screen
 
             if (ui_state.blink_is_hidden) {
-                // un-hide selected item title
-                hd44780_gotoxy(&lcd, temp_field[ui_state.item].title_x, temp_field[ui_state.item].title_y);
-                hd44780_puts(&lcd, temp_field[ui_state.item].title);
+                // redraw selected item indicator
+                hd44780_gotoxy(&lcd, temp_field[ui_state.item].data_x - 1, temp_field[ui_state.item].data_y);
+                hd44780_putc(&lcd, 0x7e);
             }
             break;
 
         case UI_MODE_SENSOR_ITEM:
-            lcd_clear();
+            hd44780_clear(&lcd);
             hd44780_puts(&lcd, "sensor item");
             break;
 
         case UI_MODE_SENSOR_EDIT:
-            lcd_clear();
+            hd44780_clear(&lcd);
             hd44780_puts(&lcd, "sensor edit");
             break;
 
@@ -264,10 +252,10 @@ static void ui_event(enum ui_event_t event, int value_change) {
 
         case UI_EVENT_VALUE_CHANGE:
             if (ui_state.mode == UI_MODE_TEMP_ITEM) {
-                if (ui_state.blink_is_hidden) {
-                    // un-hide current (old) selected item
-                    hd44780_gotoxy(&lcd, temp_field[ui_state.item].title_x, temp_field[ui_state.item].title_y);
-                    hd44780_puts(&lcd, temp_field[ui_state.item].title);
+                if (!ui_state.blink_is_hidden) {
+                    // remove current selection indicator
+                    hd44780_gotoxy(&lcd, temp_field[ui_state.item].data_x - 1, temp_field[ui_state.item].data_y);
+                    hd44780_putc(&lcd, 0x20);
                 }
 
                 // update selected item
@@ -282,11 +270,11 @@ static void ui_event(enum ui_event_t event, int value_change) {
                 // update the current ui 'value'
                 ui_state.value = temp_field[ui_state.item].value;
 
-                // hide new item immediately to give visual feedback
-                hd44780_gotoxy(&lcd, temp_field[ui_state.item].title_x, temp_field[ui_state.item].title_y);
-                hd44780_puts(&lcd, "    ");
-                ui_state.blink_is_hidden = true;
-                ui_state.timeout_count = 0;         // start new 'blink' cycle
+                // show new item indicator
+                hd44780_gotoxy(&lcd, temp_field[ui_state.item].data_x - 1, temp_field[ui_state.item].data_y);
+                hd44780_putc(&lcd, 0x7e);
+                ui_state.blink_is_hidden = false;
+                ui_state.timeout_count = 2;         // start new 'blink' cycle
 
             } else if (ui_state.mode == UI_MODE_TEMP_EDIT) {
                 hd44780_gotoxy(&lcd, temp_field[ui_state.item].data_x, temp_field[ui_state.item].data_y);
@@ -304,17 +292,17 @@ static void ui_event(enum ui_event_t event, int value_change) {
                 // do blink
                 if (ui_state.blink_is_hidden) {
                     if (ui_state.timeout_count != 0) {
-                        // un-hide field
-                        hd44780_gotoxy(&lcd, temp_field[ui_state.item].title_x, temp_field[ui_state.item].title_y);
-                        hd44780_puts(&lcd, temp_field[ui_state.item].title);
+                        // redraw item indicator
+                        hd44780_gotoxy(&lcd, temp_field[ui_state.item].data_x - 1, temp_field[ui_state.item].data_y);
+                        hd44780_putc(&lcd, 0x7e);
                         ui_state.blink_is_hidden = false;
                     }
                 } else {
                     // field is not hidden
                     if (ui_state.timeout_count == 0) {
-                        // hide field
-                        hd44780_gotoxy(&lcd, temp_field[ui_state.item].title_x, temp_field[ui_state.item].title_y);
-                        hd44780_puts(&lcd, "     ");
+                        // hide item indicator
+                        hd44780_gotoxy(&lcd, temp_field[ui_state.item].data_x - 1, temp_field[ui_state.item].data_y);
+                        hd44780_putc(&lcd, 0x20);
                         ui_state.blink_is_hidden = true;
                     }
                 }

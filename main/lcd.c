@@ -44,13 +44,3 @@ void lcd_init() {
     lcd_reset();
     hd44780_switch_backlight(&lcd, true);
 }
-
-
-void lcd_clear() {
-/*    for (int i = 0; i < 4; i++) {
-        hd44780_gotoxy(&lcd, 0, i);
-        hd44780_puts(&lcd, "                    ");     // print row full of spaces
-    }
-    hd44780_gotoxy(&lcd, 0, 0);*/
-    hd44780_clear(&lcd);
-}
