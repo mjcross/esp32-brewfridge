@@ -223,19 +223,25 @@ static void new_mode() {
             ui_state.timeout_count = 2;                                 // start new 'blink' cycle
             break;
 
+        case UI_MODE_SENSOR_ITEM:
+            // no need to clear screen
+            hd44780_gotoxy(&lcd, 0, 0);
+            //                  01234567890123456789
+            hd44780_puts(&lcd, "SELECT SENSORS      ");
+            hd44780_gotoxy(&lcd, sensor_field[ui_state.item].data_x - 1, sensor_field[ui_state.item].data_y);
+            hd44780_putc(&lcd, FIELD_INDICATOR_CHR);
+            ui_state.blink_is_hidden = false;
+            ui_state.timeout_count = 2;                                 // start new 'blink' cycle
+            break;
+
         case UI_MODE_TEMP_EDIT:
-            // NB: no need to clear the screen
+            // no need to clear screen
 
             if (ui_state.blink_is_hidden) {
                 // redraw selected item indicator
                 hd44780_gotoxy(&lcd, temp_field[ui_state.item].data_x - 1, temp_field[ui_state.item].data_y);
                 hd44780_putc(&lcd, FIELD_INDICATOR_CHR);
             }
-            break;
-
-        case UI_MODE_SENSOR_ITEM:
-            hd44780_clear(&lcd);
-            hd44780_puts(&lcd, "sensor item");
             break;
 
         case UI_MODE_SENSOR_EDIT:
@@ -316,7 +322,6 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
                 hd44780_putc(&lcd, FIELD_INDICATOR_CHR);
                 ui_state.blink_is_hidden = false;
                 ui_state.timeout_count = 2;         // start new 'blink' cycle
-
             } else if (ui_state.mode == UI_MODE_TEMP_EDIT) {
                 hd44780_gotoxy(&lcd, temp_field[ui_state.item].data_x, temp_field[ui_state.item].data_y);
 
@@ -329,8 +334,29 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
                 hd44780_puts(&lcd, buf);
                 ui_state.blink_is_hidden = false;
                 ui_state.timeout_count = 2;         // start new blink cycle
-            }
 
+            } else if (ui_state.mode == UI_MODE_SENSOR_ITEM) {
+                if (!ui_state.blink_is_hidden) {
+                    // remove current selection indicator
+                    hd44780_gotoxy(&lcd, sensor_field[ui_state.item].data_x - 1, sensor_field[ui_state.item].data_y);
+                    hd44780_putc(&lcd, 0x20);
+                }
+
+                // update selected item
+                ui_state.item += value_change;
+                while (ui_state.item >= num_sensor_fields) {
+                    ui_state.item -= num_sensor_fields;
+                }
+                while (ui_state.item < 0) {
+                    ui_state.item += num_sensor_fields;
+                }
+
+                // show new item indicator
+                hd44780_gotoxy(&lcd, sensor_field[ui_state.item].data_x - 1, sensor_field[ui_state.item].data_y);
+                hd44780_putc(&lcd, FIELD_INDICATOR_CHR);
+                ui_state.blink_is_hidden = false;
+                ui_state.timeout_count = 2;         // start new 'blink' cycle
+            }
             break;
 
         case UI_EVENT_BLINK:
