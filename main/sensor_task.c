@@ -55,7 +55,7 @@ void sensor_task(void *pParams) {
 
         // send buffer pointer to queue
         //
-        if (xQueueSend(temperature_queue, (void *)pBuf, 0) == pdTRUE) {
+        if (xQueueSend(temperature_queue, (void *)&pBuf, 0) == pdTRUE) {
             // successful send - flip buffers
             //
             if (pBuf == pTempData_A) {
