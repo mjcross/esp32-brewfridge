@@ -20,6 +20,8 @@
 #define COL_2   5
 #define COL_3   11
 #define COL_4   16
+#define FIELD_INDICATOR_CHR 0x7e    // 0x7e = right-pointing arrow
+#define NO_TEMP -999                // temperature to be displayed as --.-
 
 
 // type definitions
@@ -40,7 +42,8 @@ enum ui_event_t {
     UI_EVENT_VALUE_CHANGE,
     UI_EVENT_BLINK,
     UI_EVENT_TIMEOUT,
-    UI_EVENT_SLEEP
+    UI_EVENT_SLEEP,
+    UI_EVENT_NEW_TEMP_DATA
 };
 
 struct ui_state_t {
@@ -120,10 +123,10 @@ static struct sensor_field_t sensor_field[] = {
 static const int num_sensor_fields = sizeof(sensor_field) / sizeof(struct sensor_field_t);
 
 static struct temp_field_t temp_field[] = {
-    { "set", COL_1, 1, COL_2, 1, 0 },
-    { "min", COL_1, 2, COL_2, 2, 0 },
-    { "set", COL_3, 1, COL_4, 1, 0 },
-    { "min", COL_3, 2, COL_4, 2, 0 }
+    { "set", COL_1, 1, COL_2, 1, NO_TEMP },
+    { "min", COL_1, 2, COL_2, 2, NO_TEMP },
+    { "set", COL_3, 1, COL_4, 1, NO_TEMP },
+    { "min", COL_3, 2, COL_4, 2, NO_TEMP }
 };
 
 static const int num_temp_fields = sizeof(temp_field) / sizeof(struct temp_field_t);
@@ -131,6 +134,16 @@ static const int num_temp_fields = sizeof(temp_field) / sizeof(struct temp_field
 
 // function definitions
 // --------------------
+
+static void temp_to_str(char *buf, size_t buflen, int temp) {
+    if (temp == NO_TEMP) {
+        snprintf(buf, buflen, "--.-");
+    } else {
+        snprintf(buf, buflen, "%4.1f", temp / 10.0);
+    }
+}
+
+
 static void encoder_init(void) {
     encoder_event_queue = xQueueCreate(RE_EVENT_QUEUE_SIZE, sizeof(rotary_encoder_event_t));
     ESP_ERROR_CHECK(rotary_encoder_init(encoder_event_queue));
@@ -180,16 +193,15 @@ static void new_mode() {
             //                  01234567890123456789
             hd44780_puts(&lcd, "TEMPERATURE SETTINGS");
             for (int i = 0; i < num_temp_fields; i++) {
-                struct temp_field_t sf = temp_field[i];
-                hd44780_gotoxy(&lcd, sf.title_x, sf.title_y);
-                hd44780_puts(&lcd, sf.title);
-                hd44780_gotoxy(&lcd, sf.data_x, sf.data_y);
-                snprintf(buf, sizeof(buf), "%4.1f", sf.value / 10.0);
+                hd44780_gotoxy(&lcd, temp_field[i].title_x, temp_field[i].title_y);
+                hd44780_puts(&lcd, temp_field[i].title);
+                hd44780_gotoxy(&lcd, temp_field[i].data_x, temp_field[i].data_y);
+                temp_to_str(buf, sizeof(buf), temp_field[i].value);
                 hd44780_puts(&lcd, buf);
             }
             ui_state.value = temp_field[ui_state.item].value;
             hd44780_gotoxy(&lcd, temp_field[ui_state.item].data_x - 1, temp_field[ui_state.item].data_y);
-            hd44780_putc(&lcd, 0x7e);
+            hd44780_putc(&lcd, FIELD_INDICATOR_CHR);
             ui_state.blink_is_hidden = false;
             ui_state.timeout_count = 2;                                 // start new 'blink' cycle
             break;
@@ -200,7 +212,7 @@ static void new_mode() {
             if (ui_state.blink_is_hidden) {
                 // redraw selected item indicator
                 hd44780_gotoxy(&lcd, temp_field[ui_state.item].data_x - 1, temp_field[ui_state.item].data_y);
-                hd44780_putc(&lcd, 0x7e);
+                hd44780_putc(&lcd, FIELD_INDICATOR_CHR);
             }
             break;
 
@@ -270,14 +282,19 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
 
                 // show new item indicator
                 hd44780_gotoxy(&lcd, temp_field[ui_state.item].data_x - 1, temp_field[ui_state.item].data_y);
-                hd44780_putc(&lcd, 0x7e);
+                hd44780_putc(&lcd, FIELD_INDICATOR_CHR);
                 ui_state.blink_is_hidden = false;
                 ui_state.timeout_count = 2;         // start new 'blink' cycle
 
             } else if (ui_state.mode == UI_MODE_TEMP_EDIT) {
                 hd44780_gotoxy(&lcd, temp_field[ui_state.item].data_x, temp_field[ui_state.item].data_y);
-                ui_state.value += value_change;     // update ui value (NB this is not yet committed)
-                snprintf(buf, sizeof(buf), "%4.1f", ui_state.value / 10.0);
+
+                if (ui_state.value == NO_TEMP) {    // update ui value (NB this is not yet committed)
+                    ui_state.value = 0;
+                }
+                ui_state.value += value_change;
+
+                temp_to_str(buf, sizeof(buf), ui_state.value);
                 hd44780_puts(&lcd, buf);
                 ui_state.blink_is_hidden = false;
                 ui_state.timeout_count = 2;         // start new blink cycle
@@ -292,7 +309,7 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
                     if (ui_state.timeout_count != 0) {
                         // redraw item indicator
                         hd44780_gotoxy(&lcd, temp_field[ui_state.item].data_x - 1, temp_field[ui_state.item].data_y);
-                        hd44780_putc(&lcd, 0x7e);
+                        hd44780_putc(&lcd, FIELD_INDICATOR_CHR);
                         ui_state.blink_is_hidden = false;
                     }
                 } else {
@@ -310,7 +327,7 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
                     if (ui_state.timeout_count != 0) {
                         // un-hide field
                         hd44780_gotoxy(&lcd, temp_field[ui_state.item].data_x, temp_field[ui_state.item].data_y);
-                        snprintf(buf, sizeof(buf), "%4.1f", ui_state.value / 10.0);
+                        temp_to_str(buf, sizeof(buf), ui_state.value);
                         hd44780_puts(&lcd, buf);
                         ui_state.blink_is_hidden = false;
                     }
@@ -329,6 +346,10 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
         case UI_EVENT_SLEEP:
             ui_state.mode = UI_MODE_SLEEP;
             hd44780_switch_backlight(&lcd, false);
+            break;
+
+        case UI_EVENT_NEW_TEMP_DATA:
+            // todo: handle new temp data
             break;
 
         default:
@@ -391,7 +412,7 @@ void ui_task(void *pParams) {
         // check for new temperature data
         //
         if (xQueueReceive(temperature_queue, &(ui_state.temp_data), 0) == pdTRUE) {
-            printf("%d sensors\n", ui_state.temp_data.num_sensors);
+            ui_event_handler(UI_EVENT_NEW_TEMP_DATA, 0);
         }
 
     }
