@@ -4,7 +4,6 @@
 
 #define ONEWIRE_GPIO            17
 #define MAX_TEMP_SENSORS        11        // three rows of 4 less one 'dummy'
-#define CONTROL_TASK_QUEUE_SIZE 5
 
 // LCD display
 //

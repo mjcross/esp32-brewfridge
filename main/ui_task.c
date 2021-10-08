@@ -10,22 +10,20 @@
 #include <encoder.h>                // rotary encoder
 
 #include "defines.h"
+#include "globals.h"
+#include "types.h"
 #include "ui_task.h"
 #include "lcd.h"
-#include "globals.h"
+#include "sensor_task.h"
 
-/*static const char* ui_mode_str[] = {
-    "ui_mode_splash",
-    "ui_mode_sleep",
-    "ui_mode_status",
-    "ui_mode_temp_item",
-    "ui_mode_temp_edit",
-    "ui_mode_temp_commit",
-    "ui_mode_sensor_item",
-    "ui_mode_sensor_edit",
-    "ui_mode_sensor_commit"
-};*/
+#define COL_1   0                   // dislay column positions
+#define COL_2   5
+#define COL_3   11
+#define COL_4   16
 
+
+// type definitions
+// ----------------
 enum ui_mode_t {
     UI_MODE_SPLASH = 0,
     UI_MODE_SLEEP,
@@ -35,6 +33,50 @@ enum ui_mode_t {
     UI_MODE_SENSOR_ITEM,
     UI_MODE_SENSOR_EDIT
 };
+
+enum ui_event_t {
+    UI_EVENT_BTN_PRESS,
+    UI_EVENT_BTN_LONG_PRESS,
+    UI_EVENT_VALUE_CHANGE,
+    UI_EVENT_BLINK,
+    UI_EVENT_TIMEOUT,
+    UI_EVENT_SLEEP
+};
+
+struct ui_state_t {
+    enum ui_mode_t mode;
+    int item;
+    int value;
+    int timeout_count;
+    bool blink_is_hidden;
+    struct temp_data_t temp_data;
+};
+
+struct sensor_field_t {
+    const char title[5];
+    const int title_x;
+    const int title_y;
+    const int data_x;
+    const int data_y;
+    ds18x20_addr_t addr;
+};
+
+struct temp_field_t {
+    const char title[5];
+    const int title_x;
+    const int title_y;
+    const int data_x;
+    const int data_y;
+    int value;
+};
+
+
+// module shared vars
+// ------------------
+static QueueHandle_t encoder_event_queue;
+static rotary_encoder_t re;
+static struct ui_state_t ui_state;
+static char buf[10];
 
 static const enum ui_mode_t next_state_btn_press[] = {
     UI_MODE_STATUS,                 // splash -> status
@@ -66,37 +108,6 @@ static const enum ui_mode_t next_state_timeout[] = {
     UI_MODE_STATUS,                 // sensor edit -> status
 };
 
-enum ui_event_t {
-    UI_EVENT_BTN_PRESS,
-    UI_EVENT_BTN_LONG_PRESS,
-    UI_EVENT_VALUE_CHANGE,
-    UI_EVENT_BLINK,
-    UI_EVENT_TIMEOUT,
-    UI_EVENT_SLEEP
-};
-
-struct ui_state_t {
-    enum ui_mode_t mode;
-    int item;
-    int value;
-    int timeout_count;
-    bool blink_is_hidden;
-};
-
-#define COL_1   0
-#define COL_2   5
-#define COL_3   11
-#define COL_4   16
-
-struct sensor_field_t {
-    const char title[5];
-    const int title_x;
-    const int title_y;
-    const int data_x;
-    const int data_y;
-    ds18x20_addr_t addr;
-};
-
 static struct sensor_field_t sensor_field[] = {
     { "air",  COL_1, 1, COL_2, 1, 0 },
     { "keg1", COL_1, 2, COL_2, 2, 0 },
@@ -106,16 +117,7 @@ static struct sensor_field_t sensor_field[] = {
     { "keg2", COL_3, 3, COL_4, 3, 0 }
 };
 
-const int num_sensor_fields = sizeof(sensor_field) / sizeof(struct sensor_field_t);
-
-struct temp_field_t {
-    const char title[5];
-    const int title_x;
-    const int title_y;
-    const int data_x;
-    const int data_y;
-    int value;
-};
+static const int num_sensor_fields = sizeof(sensor_field) / sizeof(struct sensor_field_t);
 
 static struct temp_field_t temp_field[] = {
     { "set", COL_1, 1, COL_2, 1, 0 },
@@ -124,15 +126,11 @@ static struct temp_field_t temp_field[] = {
     { "min", COL_3, 2, COL_4, 2, 0 }
 };
 
-const int num_temp_fields = sizeof(temp_field) / sizeof(struct temp_field_t);
+static const int num_temp_fields = sizeof(temp_field) / sizeof(struct temp_field_t);
 
 
-static QueueHandle_t encoder_event_queue;
-static rotary_encoder_t re;
-static struct ui_state_t ui_state;
-static char buf[10];
-
-
+// function definitions
+// --------------------
 static void encoder_init(void) {
     encoder_event_queue = xQueueCreate(RE_EVENT_QUEUE_SIZE, sizeof(rotary_encoder_event_t));
     ESP_ERROR_CHECK(rotary_encoder_init(encoder_event_queue));
@@ -223,7 +221,7 @@ static void new_mode() {
 }
 
 
-static void ui_event(enum ui_event_t event, int value_change) {
+static void ui_event_handler(enum ui_event_t event, int value_change) {
 
     switch(event) {
         case UI_EVENT_BTN_PRESS:
@@ -349,20 +347,23 @@ void ui_task(void *pParams) {
 
     static int long_timeout_count;
     static int sleep_timeout_count;
+
     for(;;) {
+        // wait for encoder events
+        //
         if (xQueueReceive(encoder_event_queue, &e, pdMS_TO_TICKS(UI_BLINK_MS)) == pdTRUE) {
 
             switch (e.type) {                               // handle event
                 case RE_ET_BTN_CLICKED:
-                    ui_event(UI_EVENT_BTN_PRESS, 0);
+                    ui_event_handler(UI_EVENT_BTN_PRESS, 0);
                     break;
 
                 case RE_ET_BTN_LONG_PRESSED:
-                    ui_event(UI_EVENT_BTN_LONG_PRESS, 0);
+                    ui_event_handler(UI_EVENT_BTN_LONG_PRESS, 0);
                     break;
 
                 case RE_ET_CHANGED:
-                    ui_event(UI_EVENT_VALUE_CHANGE, e.diff);
+                    ui_event_handler(UI_EVENT_VALUE_CHANGE, e.diff);
                     break;
 
                 default:
@@ -374,17 +375,24 @@ void ui_task(void *pParams) {
 
         } else {
             ui_state.timeout_count = (ui_state.timeout_count + 1) % UI_BLINKS_PER_FLASH;
-            ui_event(UI_EVENT_BLINK, 0);
+            ui_event_handler(UI_EVENT_BLINK, 0);
 
             long_timeout_count = (long_timeout_count + 1) % UI_BLINKS_PER_TIMEOUT;
             if (long_timeout_count == 0) {
-                ui_event(UI_EVENT_TIMEOUT, 0);
+                ui_event_handler(UI_EVENT_TIMEOUT, 0);
             }
 
             sleep_timeout_count = (sleep_timeout_count + 1) % UI_BLINKS_PER_SLEEP;
             if (sleep_timeout_count == 0) {
-                ui_event(UI_EVENT_SLEEP, 0);
+                ui_event_handler(UI_EVENT_SLEEP, 0);
             }
         }
+
+        // check for new temperature data
+        //
+        if (xQueueReceive(temperature_queue, &(ui_state.temp_data), 0) == pdTRUE) {
+            printf("%d sensors\n", ui_state.temp_data.num_sensors);
+        }
+
     }
 }
