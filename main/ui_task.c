@@ -116,12 +116,13 @@ static const enum ui_mode_t next_state_timeout[] = {
     UI_MODE_STATUS,                 // sensor edit -> status
 };
 
+//! NB: sensor addresses hard-coded for testing purposes
 static struct sensor_field_t sensor_field[] = {
-    { "air",  COL_1, 1, COL_2, 1, 0, UNDEFINED_TEMP },
-    { "keg1", COL_1, 2, COL_2, 2, 0, UNDEFINED_TEMP },
-    { "keg2", COL_1, 3, COL_2, 3, 0, UNDEFINED_TEMP },
-    { "air",  COL_3, 1, COL_4, 1, 0, UNDEFINED_TEMP },
-    { "keg1", COL_3, 2, COL_4, 2, 0, UNDEFINED_TEMP },
+    { "air",  COL_1, 1, COL_2, 1, 0x1a3c01d0751d0c28, UNDEFINED_TEMP },
+    { "keg1", COL_1, 2, COL_2, 2, 0xbf3c01d07515ea28, UNDEFINED_TEMP },
+    { "keg2", COL_1, 3, COL_2, 3, 0xbb3c01d075e74628, UNDEFINED_TEMP },
+    { "air",  COL_3, 1, COL_4, 1, 0xfc3c01d0758b1528, UNDEFINED_TEMP },
+    { "keg1", COL_3, 2, COL_4, 2, 0x993c01d075ff3d28, UNDEFINED_TEMP },
     { "keg2", COL_3, 3, COL_4, 3, 0, UNDEFINED_TEMP }
 };
 
@@ -145,6 +146,19 @@ static void temp_to_str(char *buf, size_t buflen, int temp) {
         snprintf(buf, buflen, "--.-");
     } else {
         snprintf(buf, buflen, "%4.1f", temp / 10.0);
+    }
+}
+
+
+static void display_sensor_temps(void) {
+    for (int i = 0; i < num_sensor_fields; i += 1) {
+        hd44780_gotoxy(&lcd, sensor_field[i].data_x, sensor_field[i].data_y);
+        if (sensor_field[i].temperature == UNDEFINED_TEMP) {
+            hd44780_puts(&lcd, "--.-");
+        } else {
+            snprintf(buf, sizeof(buf), "%4.1f", sensor_field[i].temperature);
+            hd44780_puts(&lcd, buf);
+        }
     }
 }
 
@@ -184,15 +198,8 @@ static void new_mode() {
             for (int i = 0; i < num_sensor_fields; i++) {
                 hd44780_gotoxy(&lcd, sensor_field[i].title_x, sensor_field[i].title_y);
                 hd44780_puts(&lcd, sensor_field[i].title);
-
-                hd44780_gotoxy(&lcd, sensor_field[i].data_x, sensor_field[i].data_y);
-                if (sensor_field[i].addr == 0) {
-                    hd44780_puts(&lcd, "--.-");
-                } else {
-                    snprintf(buf, sizeof(buf), "%4.1f", sensor_field[i].temperature);
-                    hd44780_puts(&lcd, buf);
-                }
             }
+            display_sensor_temps();
 
             // reset selected item
             ui_state.item = 0;
@@ -254,13 +261,6 @@ static void update_sensor_temps(struct temp_data_t *pTemp) {
             }
         }
     }
-
-    //! debug code
-    printf("%d sensors\n", pTemp->num_sensors);
-    for (int s = 0; s < pTemp->num_sensors; s += 1) {
-        printf("\t0x%" PRIx64 "\n", pTemp->addr[s]);
-    }
-    //! end of debug code
 }
 
 
@@ -381,6 +381,9 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
 
         case UI_EVENT_NEW_TEMP_DATA:
             update_sensor_temps(&(ui_state.temp_data));
+            if (ui_state.mode == UI_MODE_STATUS || ui_state.mode == UI_MODE_SENSOR_ITEM) {
+                display_sensor_temps();
+            }
             break;
 
         default:

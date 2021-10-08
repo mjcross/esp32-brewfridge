@@ -23,7 +23,7 @@
 #define UI_BLINK_MS             250      // timeout on temp setting mode
 #define UI_BLINKS_PER_FLASH     4
 #define UI_BLINKS_PER_TIMEOUT   20
-#define UI_BLINKS_PER_SLEEP     40
+#define UI_BLINKS_PER_SLEEP     400
 
 
 // power control
