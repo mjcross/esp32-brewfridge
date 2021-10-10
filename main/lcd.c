@@ -5,6 +5,14 @@
 
 static i2c_dev_t pcf8574;   // see https://esp-idf-lib.readthedocs.io/en/latest/groups/i2cdev.html
 
+static unsigned char lcd_buffer[5 * 20];
+static int lcd_row;
+static int lcd_col;
+static int hidden_row;
+static int hidden_col;
+static char buf[21];
+
+
 static esp_err_t write_lcd_data(const hd44780_t *lcd, uint8_t data) {
     return pcf8574_port_write(&pcf8574, data);
 }
@@ -25,8 +33,18 @@ hd44780_t lcd = {
     };
 
 
+void lcd_clear() {
+    hd44780_clear(&lcd);
+    memset(lcd_buffer, 0x20, 5 * 20);
+    lcd_row = 0;
+    lcd_col = 0;
+    buf[0] = '\0';
+}
+
+
 void lcd_reset() {
     ESP_ERROR_CHECK(hd44780_init(&lcd));
+    memset(lcd_buffer, 0x20, 5 * 20);
 }
 
 
@@ -43,4 +61,57 @@ void lcd_init() {
 
     lcd_reset();
     hd44780_switch_backlight(&lcd, true);
+}
+
+
+void lcd_gotoxy(int x, int y) {
+    hd44780_gotoxy(&lcd, x, y);
+    lcd_col = x;
+    lcd_row = y;
+}
+
+
+void lcd_switch_backlight(bool state) {
+    hd44780_switch_backlight(&lcd, state);
+}
+
+
+void lcd_putc(const char c) {
+    hd44780_putc(&lcd, c);
+}
+
+
+void lcd_puts(const char *buf) {
+    hd44780_puts(&lcd, buf);
+    int len = (int)strnlen(buf, 20);
+    if (len > (20 - lcd_col)) {
+        len = 20 - lcd_col;
+    }
+    memcpy(lcd_buffer + lcd_row * 20 + lcd_col, buf, len);
+}
+
+
+void lcd_hide(int x, int y, int num_chars) {
+    if (num_chars >= sizeof(buf)) {
+        num_chars = sizeof(buf) - 1;
+    }
+
+    memset(buf, ' ', num_chars);
+    buf[num_chars] = '\0';
+    hd44780_gotoxy(&lcd, x, y);
+    hd44780_puts(&lcd, buf);
+
+    memcpy(buf, lcd_buffer + y * 20 + x, num_chars);
+    buf[num_chars] = '\0';
+    hidden_row = y;
+    hidden_col = x;
+}
+
+
+void lcd_restore(void) {
+    if (buf[0] != '\0') {
+        hd44780_gotoxy(&lcd, hidden_col, hidden_row);
+        hd44780_puts(&lcd, buf);
+        buf[0] = '\0';
+    }
 }
