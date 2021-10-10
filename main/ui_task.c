@@ -16,16 +16,12 @@
 #include "lcd.h"
 #include "sensor_task.h"
 
-//! debug code
-#include <inttypes.h>
-//! end of debug code
 
 #define COL_1   0                   // dislay column positions
 #define COL_2   5
 #define COL_3   11
 #define COL_4   16
 #define FIELD_INDICATOR_CHR 0x7e    // 0x7e = right-pointing arrow
-#define UNDEFINED_TEMP -999         // temperature to be displayed as --.-
 
 
 // type definitions
@@ -54,6 +50,7 @@ struct ui_state_t {
     enum ui_mode_t mode;
     int item;
     int value;
+    ds18x20_addr_t addr;
     int timeout_count;
     bool blink_is_hidden;
     struct temp_data_t temp_data;
@@ -223,17 +220,6 @@ static void new_mode() {
             ui_state.timeout_count = 2;                                 // start new 'blink' cycle
             break;
 
-        case UI_MODE_SENSOR_ITEM:
-            // no need to clear screen
-            hd44780_gotoxy(&lcd, 0, 0);
-            //                  01234567890123456789
-            hd44780_puts(&lcd, "SELECT SENSORS      ");
-            hd44780_gotoxy(&lcd, sensor_field[ui_state.item].data_x - 1, sensor_field[ui_state.item].data_y);
-            hd44780_putc(&lcd, FIELD_INDICATOR_CHR);
-            ui_state.blink_is_hidden = false;
-            ui_state.timeout_count = 2;                                 // start new 'blink' cycle
-            break;
-
         case UI_MODE_TEMP_EDIT:
             // no need to clear screen
 
@@ -244,9 +230,28 @@ static void new_mode() {
             }
             break;
 
+        case UI_MODE_SENSOR_ITEM:
+            // re-draw screen in case we are entering from UI_MODE_SENSOR_EDIT
+            hd44780_clear(&lcd);
+            //                  01234567890123456789
+            hd44780_puts(&lcd, "SELECT SENSORS      ");
+            for (int i = 0; i < num_sensor_fields; i++) {
+                hd44780_gotoxy(&lcd, sensor_field[i].title_x, sensor_field[i].title_y);
+                hd44780_puts(&lcd, sensor_field[i].title);
+            }
+            display_sensor_temps();
+
+            hd44780_gotoxy(&lcd, sensor_field[ui_state.item].data_x - 1, sensor_field[ui_state.item].data_y);
+            hd44780_putc(&lcd, FIELD_INDICATOR_CHR);
+            ui_state.blink_is_hidden = false;
+            ui_state.timeout_count = 2;                                 // start new 'blink' cycle
+            break;
+
+
         case UI_MODE_SENSOR_EDIT:
             hd44780_clear(&lcd);
-            hd44780_puts(&lcd, "sensor edit");
+            hd44780_puts(&lcd, sensor_field[ui_state.item].title);
+
             break;
 
         default:
@@ -271,6 +276,7 @@ static void update_sensor_temps(struct temp_data_t *pTemp) {
 
 
 static void ui_event_handler(enum ui_event_t event, int value_change) {
+    static int prev_num_sensors;
 
     switch(event) {
         case UI_EVENT_BTN_PRESS:
@@ -409,7 +415,29 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
             update_sensor_temps(&(ui_state.temp_data));
             if (ui_state.mode == UI_MODE_STATUS || ui_state.mode == UI_MODE_SENSOR_ITEM) {
                 display_sensor_temps();
-            }
+            } else if (ui_state.mode == UI_MODE_SENSOR_EDIT) {
+
+                // erase any previous stale readings
+                if (ui_state.temp_data.num_sensors != prev_num_sensors) {
+                    for (int i = ui_state.temp_data.num_sensors; i < prev_num_sensors; i += 1) {
+                        hd44780_gotoxy(&lcd, (i % 4) * 5, 1 + (i /4));
+                        hd44780_puts(&lcd, "     ");
+                    }
+                    prev_num_sensors = ui_state.temp_data.num_sensors;
+                };
+
+                // display new readings
+                //
+                for (int i = 0; i < ui_state.temp_data.num_sensors; i += 1) {
+                    hd44780_gotoxy(&lcd, (i % 4) * 5, 1 + (i / 4));
+                    if (i == 0) {
+                        hd44780_puts(&lcd, "--.-");
+                    } else {
+                        snprintf(buf, sizeof(buf), "%4.1f", ui_state.temp_data.temp[i]);
+                        hd44780_puts(&lcd, buf);
+                    }
+                }
+            } // UI_MODE_SENSOR_EDIT
             break;
 
         default:
@@ -473,11 +501,8 @@ void ui_task(void *pParams) {
         //
         struct temp_data_t *pTemp_data;
         if (xQueuePeek(temperature_queue, &(pTemp_data), 0) == pdTRUE) {
-            // take local copy of referenced data
-            ui_state.temp_data = *pTemp_data;
-
-            // process local copy of data
-            ui_event_handler(UI_EVENT_NEW_TEMP_DATA, 0);
+            ui_state.temp_data = *pTemp_data;               // take local copy
+            ui_event_handler(UI_EVENT_NEW_TEMP_DATA, 0);    // process local copy
 
             // un-block queue so sending task can continue
             xQueueReceive(temperature_queue, &(pTemp_data), 0);

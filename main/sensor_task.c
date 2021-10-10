@@ -10,6 +10,7 @@
 
 QueueHandle_t temperature_queue;
 
+
 void sensor_task(void *pParams) {
     // create double buffers on heap
     //
@@ -24,22 +25,29 @@ void sensor_task(void *pParams) {
 
     struct temp_data_t *pBuf = pTempData_A;
 
+    // dummy first sensor readings to simplify UI
+    //
+    pTempData_A->addr[0] = 0;
+    pTempData_A->temp[0] = UNDEFINED_TEMP;
+    pTempData_B->addr[0] = 0;
+    pTempData_B->temp[0] = UNDEFINED_TEMP;
+
     // continuously scan bus and send readings to queue
     //
     for(;;) {
-
         // scan bus for sensors
         //
-        if (ds18x20_scan_devices(ONEWIRE_GPIO, pBuf->addr, MAX_TEMP_SENSORS, &(pBuf->num_sensors)) == ESP_OK) {
+        if (ds18x20_scan_devices(ONEWIRE_GPIO, pBuf->addr + 1, MAX_TEMP_SENSORS, &(pBuf->num_sensors)) == ESP_OK) {
             if (pBuf->num_sensors > MAX_TEMP_SENSORS) {
                 pBuf->num_sensors = MAX_TEMP_SENSORS;
             }
-            // read sensors
+            // read sensors, skip dummy
             //
             if (ds18x20_measure_and_read_multi(ONEWIRE_GPIO,
-                                               pBuf->addr,
+                                               pBuf->addr + 1,
                                                pBuf->num_sensors,
-                                               pBuf->temp) != ESP_OK) {
+                                               pBuf->temp + 1)
+            != ESP_OK) {
                 // couldn't read sensors
                 //
                 pBuf->num_sensors = 0;
@@ -55,6 +63,7 @@ void sensor_task(void *pParams) {
 
         // send buffer pointer to queue
         //
+        pBuf->num_sensors += 1; // count dummy
         if (xQueueSend(temperature_queue, (void *)&pBuf, 0) == pdTRUE) {
             // successful send - flip buffers
             //

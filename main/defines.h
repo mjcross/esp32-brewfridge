@@ -3,7 +3,7 @@
 #define LOG_TAG                 "brewfridge"
 
 #define ONEWIRE_GPIO            17
-#define MAX_TEMP_SENSORS        11        // three rows of 4 less one 'dummy'
+#define MAX_TEMP_SENSORS        12        // UI can show three rows of four
 
 // LCD display
 //
@@ -22,7 +22,7 @@
 //
 #define UI_BLINK_MS             250      // timeout on temp setting mode
 #define UI_BLINKS_PER_FLASH     4
-#define UI_BLINKS_PER_TIMEOUT   20
+#define UI_BLINKS_PER_TIMEOUT   40
 #define UI_BLINKS_PER_SLEEP     400
 
 
