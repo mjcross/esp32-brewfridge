@@ -264,9 +264,9 @@ void new_mode_sensor(int i) {
 
     lcd_puts(sensor_field[i].title);
     if (i < 3) {
-        lcd_puts(" (1) ");
+        lcd_puts(" fridge 1 ");
     } else {
-        lcd_puts(" (2) ");
+        lcd_puts(" fridge 2 ");
     }
 
     addr = sensor_field[i].addr;
@@ -518,6 +518,17 @@ static void control_fridges() {
     } else {
         f1_power_off();
     }
+
+    if (cooling_needed(set_field[2].value,         // fridge 1 set
+                       set_field[3].value,         // fridge 1 min
+                       sensor_field[2].temp,        // fridge 1 air
+                       sensor_field[3].temp))       // fridge 1 keg1
+    {
+        f2_power_on();
+    } else {
+        f2_power_off();
+    }
+
 
     if (mode == UI_MODE_STATUS
         || mode == UI_MODE_SET_1
