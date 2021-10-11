@@ -53,7 +53,7 @@ struct sensor_field_t {
     const int data_x;
     const int data_y;
     ds18x20_addr_t addr;
-    float temperature;
+    float temp;
 };
 
 struct temp_field_t {
@@ -99,13 +99,12 @@ static const enum ui_mode_t next_state_timeout[] = {
     UI_MODE_STATUS,                 // sensor edit -> status
 };
 
-//! NB: sensor addresses hard-coded for testing purposes
 static struct sensor_field_t sensor_field[] = {
-    { "air",  COL_1, 1, COL_2, 1, 0x1a3c01d0751d0c28, UNDEFINED_TEMP },
-    { "keg1", COL_1, 2, COL_2, 2, 0xbf3c01d07515ea28, UNDEFINED_TEMP },
-    { "keg2", COL_1, 3, COL_2, 3, 0xbb3c01d075e74628, UNDEFINED_TEMP },
-    { "air",  COL_3, 1, COL_4, 1, 0xfc3c01d0758b1528, UNDEFINED_TEMP },
-    { "keg1", COL_3, 2, COL_4, 2, 0x993c01d075ff3d28, UNDEFINED_TEMP },
+    { "air",  COL_1, 1, COL_2, 1, 0, UNDEFINED_TEMP },
+    { "keg1", COL_1, 2, COL_2, 2, 0, UNDEFINED_TEMP },
+    { "keg2", COL_1, 3, COL_2, 3, 0, UNDEFINED_TEMP },
+    { "air",  COL_3, 1, COL_4, 1, 0, UNDEFINED_TEMP },
+    { "keg1", COL_3, 2, COL_4, 2, 0, UNDEFINED_TEMP },
     { "keg2", COL_3, 3, COL_4, 3, 0, UNDEFINED_TEMP }
 };
 
@@ -147,10 +146,10 @@ static void temp_to_str(char *buf, size_t buflen, int temp) {
 static void display_sensor_temps(void) {
     for (int i = 0; i < num_sensor_fields; i += 1) {
         lcd_gotoxy(sensor_field[i].data_x, sensor_field[i].data_y);
-        if (sensor_field[i].temperature == UNDEFINED_TEMP) {
+        if (sensor_field[i].temp == UNDEFINED_TEMP) {
             lcd_puts("--.-");
         } else {
-            snprintf(buf, sizeof(buf), "%4.1f", sensor_field[i].temperature);
+            snprintf(buf, sizeof(buf), "%4.1f", sensor_field[i].temp);
             lcd_puts(buf);
         }
     }
@@ -230,7 +229,7 @@ static void new_mode() {
         case UI_MODE_SENSOR_ITEM:
             // re-draw screen in case we are entering from UI_MODE_SENSOR_EDIT
             lcd_clear();
-            //                  01234567890123456789
+            //        01234567890123456789
             lcd_puts("SELECT SENSORS");
             for (int i = 0; i < num_sensor_fields; i++) {
                 lcd_gotoxy(sensor_field[i].title_x, sensor_field[i].title_y);
@@ -238,8 +237,9 @@ static void new_mode() {
             }
             display_sensor_temps();
 
-            blink_x = COL_1;
-            blink_y = 1;
+            addr = sensor_field[item].addr;
+            blink_x = sensor_field[item].title_x;
+            blink_y = sensor_field[item].title_y;
             blink_enabled = true;
             timeout_count = 2;                                 // start new 'blink' cycle
             break;
@@ -256,9 +256,11 @@ static void new_mode() {
                     snprintf(buf, sizeof(buf), "%4.1f", temp_data.temp[i]);
                     lcd_puts(buf);
                 }
+                if (temp_data.addr[i] == addr) {
+                    blink_x = 5 * (i % 4);
+                    blink_y = 1 + (i / 4);
+                }
             }
-            blink_x = COL_1;
-            blink_y = 1;
             blink_enabled = true;
             break;
 
@@ -271,11 +273,11 @@ static void new_mode() {
 
 static void update_sensor_temps(struct temp_data_t *pTemp) {
     for (int f = 0; f < num_sensor_fields; f += 1) {
-        sensor_field[f].temperature = UNDEFINED_TEMP;
+        sensor_field[f].temp = UNDEFINED_TEMP;
         if (sensor_field[f].addr != 0) {
             for (int s = 0; s < pTemp->num_sensors; s += 1) {
                 if (pTemp->addr[s] == sensor_field[f].addr) {
-                    sensor_field[f].temperature = pTemp->temp[s];
+                    sensor_field[f].temp = pTemp->temp[s];
                 }
             }
         }
@@ -292,10 +294,15 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
             if (mode == UI_MODE_SLEEP) {
                 lcd_switch_backlight(true);                 // wake from sleep
             } else if (mode == UI_MODE_TEMP_EDIT) {
-                temp_field[item].value = value;             // 'commit' current UI value
+                temp_field[item].value = value;             // commit current UI value
                 item = (item + 1) % num_temp_fields;        // advance to next setting
                 blink_x = temp_field[item].title_x;
                 blink_y = temp_field[item].title_y;
+            } else if (mode == UI_MODE_SENSOR_EDIT) {
+                sensor_field[item].addr = addr;             // commit current UI addr
+                item = (item + 1) % num_sensor_fields;      // advance to next setting
+                blink_x = sensor_field[item].title_x;
+                blink_y = sensor_field[item].title_y;
             }
 
             mode = next_state_btn_press[mode];
@@ -308,7 +315,8 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
             break;
 
         case UI_EVENT_TIMEOUT:
-            if (mode != next_state_timeout[mode]) {
+            // don't time out in SENSOR_EDIT mode
+            if (mode != UI_MODE_SENSOR_EDIT && mode != next_state_timeout[mode]) {
                 mode = next_state_timeout[mode];
                 new_mode();
             }
@@ -357,14 +365,43 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
                     item += num_sensor_fields;
                 }
 
+                // update the current ui 'address'
+                addr = sensor_field[item].addr;
+
                 // blink new item straight away
-                blink_x = sensor_field[item].data_x;
-                blink_y = sensor_field[item].data_y;
+                blink_x = sensor_field[item].title_x;
+                blink_y = sensor_field[item].title_y;
                 lcd_hide(blink_x, blink_y, 4);
                 timeout_count = 0;         // start new 'blink' cycle
 
                 // update UI address
                 addr = sensor_field[item].addr;
+            } else if (mode == UI_MODE_SENSOR_EDIT) {
+
+                int i = 0;
+                if (temp_data.num_sensors > 1) {
+                    // find index of current sensor or default to zero
+                    for (i = 0; i < temp_data.num_sensors; i += 1) {
+                        if (temp_data.addr[i] == addr) {
+                            break;
+                        }
+                    }
+
+                    // update selection
+                    i += value_change;
+                    while (i >= (int)temp_data.num_sensors) {   // note cast to avoid signed/unsigned comparison
+                        i -= temp_data.num_sensors;
+                    }
+                    while (i < 0) {
+                        i += temp_data.num_sensors;
+                    }
+                }
+
+                addr = temp_data.addr[i];
+                blink_x = (i % 4) * 5;
+                blink_y = 1 + (i / 4);
+                lcd_hide(blink_x, blink_y, 4);
+                timeout_count = 0;
             }
             break;
 
@@ -372,7 +409,7 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
             if (blink_enabled) {
                 if (timeout_count == 0) {
                     lcd_hide(blink_x, blink_y, 4);
-                } else if (timeout_count == 1) {
+                } else if (timeout_count == 1 && mode != UI_MODE_SENSOR_EDIT) {
                     lcd_restore();
                 }
             }
@@ -389,12 +426,30 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
                 display_sensor_temps();
             } else if (mode == UI_MODE_SENSOR_EDIT) {
 
-                // erase any previous stale readings
+                // check whether sensors have changed
                 if (temp_data.num_sensors != prev_num_sensors) {
+
+                    // check whether existing selection is still available
+                    int i;
+                    for (i = 0; i < temp_data.num_sensors; i += 1) {
+                        if (temp_data.addr[i] == addr) {
+                            break;
+                        }
+                    }
+                    if (temp_data.addr[i] != addr) {
+                        // existing selection no longer available
+                        lcd_restore();
+                        addr = 0;
+                        blink_x = 0;
+                        blink_y = 1;
+                    }
+
+                    // remove any old readings that wouldn't be overwritten
                     for (int i = temp_data.num_sensors; i < prev_num_sensors; i += 1) {
                         lcd_gotoxy((i % 4) * 5, 1 + (i /4));
                         lcd_puts("    ");
                     }
+
                     prev_num_sensors = temp_data.num_sensors;
                 };
 
@@ -403,20 +458,14 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
                 for (int i = 0; i < temp_data.num_sensors; i += 1) {
                     lcd_gotoxy((i % 4) * 5, 1 + (i / 4));
                     if (i == 0) {
-                        snprintf(buf, sizeof(buf), "--.-");
+                        lcd_puts("--.-");
                     } else {
                         snprintf(buf, sizeof(buf), "%4.1f", temp_data.temp[i]);
-                    }
-                    if (addr == temp_data.addr[i]) {
-                        blink_x = (i % 4) * 5;
-                        blink_y = 1 + (i / 4);
-                        lcd_hide(blink_x, blink_y, 4);
-                        timeout_count = 0;
-                    } else {
                         lcd_puts(buf);
                     }
-
                 }
+                timeout_count = 1;
+
             } // UI_MODE_SENSOR_EDIT
             break;
 
@@ -424,6 +473,34 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
             ESP_LOGE(TAG, "unrecognised event");
             break;
     }
+}
+
+
+void f1_power_on() {
+}
+
+void f1_power_off() {
+}
+
+bool thermostat(float set, float min, float air, float keg) {
+    printf("set %f, min %f, air %f, keg %f\n", set, min, air, keg);
+    return true;
+}
+
+
+// todo: add state indicators to status display
+static void control_fridges() {
+    if (thermostat(temp_field[0].value / 10.0,  // fridge 1 set
+                   temp_field[1].value / 10.0,  // fridge 1 min
+                   sensor_field[0].temp,        // fridge 1 air
+                   sensor_field[1].temp         // fridge 1 keg1
+                   )) {
+        f1_power_on();
+    } else {
+        f1_power_off();
+    }
+
+
 }
 
 
@@ -438,6 +515,9 @@ void ui_task(void *pParams) {
     static int sleep_timeout_count;
 
     for(;;) {
+        // apply thermostat control
+        control_fridges();
+
         // wait for encoder events
         //
         if (xQueueReceive(encoder_event_queue, &e, pdMS_TO_TICKS(UI_BLINK_MS)) == pdTRUE) {
@@ -481,7 +561,7 @@ void ui_task(void *pParams) {
         //
         struct temp_data_t *pTemp_data;
         if (xQueuePeek(temperature_queue, &(pTemp_data), 0) == pdTRUE) {
-            temp_data = *pTemp_data;               // take local copy
+            temp_data = *pTemp_data;                        // take local copy
             ui_event_handler(UI_EVENT_NEW_TEMP_DATA, 0);    // process local copy
 
             // un-block queue so sending task can continue

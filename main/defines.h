@@ -22,7 +22,7 @@
 //
 #define UI_BLINK_MS             250      // timeout on temp setting mode
 #define UI_BLINKS_PER_FLASH     4
-#define UI_BLINKS_PER_TIMEOUT   40
+#define UI_BLINKS_PER_TIMEOUT   30
 #define UI_BLINKS_PER_SLEEP     400
 
 
@@ -31,4 +31,3 @@
 #define F1_RELAY_GPIO           32
 #define F2_RELAY_GPIO           33
 #define RELAY_INTERVAL_MS       30000     // minimum cooling on/off time
-#define INITIAL_SET_TEMP        23.0      // initial target temp
