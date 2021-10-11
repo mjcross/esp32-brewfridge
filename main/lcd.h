@@ -13,5 +13,6 @@ void lcd_putc(const char);
 void lcd_switch_backlight(bool);
 void lcd_hide(int, int, int);
 void lcd_restore(void);
+void lcd_dump(void);
 
 #endif // LCD_H

@@ -31,10 +31,16 @@ enum ui_mode_t {
     UI_MODE_SPLASH = 0,
     UI_MODE_SLEEP,
     UI_MODE_STATUS,
-    UI_MODE_TEMP_ITEM,
-    UI_MODE_TEMP_EDIT,
-    UI_MODE_SENSOR_ITEM,
-    UI_MODE_SENSOR_EDIT
+    UI_MODE_SET_1,
+    UI_MODE_SET_2,
+    UI_MODE_SET_3,
+    UI_MODE_SET_4,
+    UI_MODE_SENSOR_1,
+    UI_MODE_SENSOR_2,
+    UI_MODE_SENSOR_3,
+    UI_MODE_SENSOR_4,
+    UI_MODE_SENSOR_5,
+    UI_MODE_SENSOR_6
 };
 
 enum ui_event_t {
@@ -57,7 +63,7 @@ struct sensor_field_t {
     float temp;
 };
 
-struct temp_field_t {
+struct set_field_t {
     const char title[5];
     const int title_x;
     const int title_y;
@@ -73,31 +79,48 @@ struct temp_field_t {
 static const enum ui_mode_t next_state_btn_press[] = {
     UI_MODE_STATUS,                 // splash -> status
     UI_MODE_STATUS,                 // sleep -> status
-    UI_MODE_TEMP_ITEM,              // status -> temp item
-    UI_MODE_TEMP_EDIT,              // temp item -> temp edit
-    UI_MODE_TEMP_ITEM,              // temp edit -> temp item
-    UI_MODE_SENSOR_EDIT,            // sensor item -> sensor edit
-    UI_MODE_SENSOR_ITEM             // sensor edit -> sensor item
+    UI_MODE_SET_1,                  // status -> set_1
+    UI_MODE_SET_2,                  // set_1 -> set_2
+    UI_MODE_SET_3,                  // set_2 -> set_3
+    UI_MODE_SET_4,                  // set_3 -> set_4
+    UI_MODE_SET_1,                  // set_4 -> set_1
+    UI_MODE_SENSOR_2,               // sensor_1 -> sensor_2
+    UI_MODE_SENSOR_3,               // sensor_2 -> sensor_3
+    UI_MODE_SENSOR_4,               // sensor_3 -> sensor_4
+    UI_MODE_SENSOR_5,               // sensor_4 -> sensor_5
+    UI_MODE_SENSOR_6,               // sensor_1 -> sensor_6
+    UI_MODE_SENSOR_1                // sensor_6 -> sensor_1
 };
 
 static const enum ui_mode_t next_state_long_press[] = {
     UI_MODE_STATUS,                 // splash -> status
     UI_MODE_STATUS,                 // sleep -> status
-    UI_MODE_SENSOR_ITEM,            // status -> sensor item
-    UI_MODE_STATUS,                 // temp item -> status
-    UI_MODE_STATUS,                 // temp edit -> status
-    UI_MODE_STATUS,                 // sensor item -> status
-    UI_MODE_STATUS,                 // sensor edit -> status
+    UI_MODE_SENSOR_1,               // status -> sensor_1
+    UI_MODE_STATUS,                 // set_1 -> status
+    UI_MODE_STATUS,                 // set_2 -> status
+    UI_MODE_STATUS,                 // set_3 -> status
+    UI_MODE_STATUS,                 // set_4 -> status
+    UI_MODE_STATUS,                 // sensor_1 -> status
+    UI_MODE_STATUS,                 // sensor_2 -> status
+    UI_MODE_STATUS,                 // sensor_3 -> status
+    UI_MODE_STATUS,                 // sensor_4 -> status
+    UI_MODE_STATUS,                 // sensor_5 -> status
+    UI_MODE_STATUS                  // sensor_6 -> status
 };
 
 static const enum ui_mode_t next_state_timeout[] = {
     UI_MODE_STATUS,                 // splash -> status
     UI_MODE_SLEEP,                  // sleep -> sleep
-    UI_MODE_STATUS,                 // status -> status
-    UI_MODE_STATUS,                 // temp item -> status
-    UI_MODE_STATUS,                 // temp edit -> status
-    UI_MODE_STATUS,                 // sensor item -> status
-    UI_MODE_STATUS,                 // sensor edit -> status
+    UI_MODE_STATUS,                 // set_1 -> status
+    UI_MODE_STATUS,                 // set_2 -> status
+    UI_MODE_STATUS,                 // set_3 -> status
+    UI_MODE_STATUS,                 // set_4 -> status
+    UI_MODE_STATUS,                 // sensor_1 -> status
+    UI_MODE_STATUS,                 // sensor_2 -> status
+    UI_MODE_STATUS,                 // sensor_3 -> status
+    UI_MODE_STATUS,                 // sensor_4 -> status
+    UI_MODE_STATUS,                 // sensor_5 -> status
+    UI_MODE_STATUS                  // sensor_6 -> status
 };
 
 static struct sensor_field_t sensor_field[] = {
@@ -109,7 +132,7 @@ static struct sensor_field_t sensor_field[] = {
     { "keg2", COL_3, 3, COL_4, 3, 0, UNDEFINED_TEMP }
 };
 
-static struct temp_field_t temp_field[] = {
+static struct set_field_t set_field[] = {
     { "set", COL_1, 1, COL_2, 1, UNDEFINED_TEMP },
     { "min", COL_1, 2, COL_2, 2, UNDEFINED_TEMP },
     { "set", COL_3, 1, COL_4, 1, UNDEFINED_TEMP },
@@ -124,13 +147,11 @@ static const char power_state_indicator[] = {
 };
 
 static const int num_sensor_fields = sizeof(sensor_field) / sizeof(struct sensor_field_t);
-static const int num_temp_fields = sizeof(temp_field) / sizeof(struct temp_field_t);
+static const int num_set_fields = sizeof(set_field) / sizeof(struct set_field_t);
 static QueueHandle_t encoder_event_queue;
 static rotary_encoder_t re;
 static char buf[10];
 static enum ui_mode_t mode;
-static int item;
-static int value;
 static ds18x20_addr_t addr;
 static int timeout_count;
 static struct temp_data_t temp_data;
@@ -142,7 +163,7 @@ bool blink_enabled;
 // function definitions
 // --------------------
 
-static void temp_to_str(char *buf, size_t buflen, int temp) {
+static void value_to_temp_str(char *buf, size_t buflen, int temp) {
     if (temp == UNDEFINED_TEMP) {
         snprintf(buf, buflen, "--.-");
     } else {
@@ -151,7 +172,7 @@ static void temp_to_str(char *buf, size_t buflen, int temp) {
 }
 
 
-static void display_sensor_temps(void) {
+static void status_display_sensor_temps(void) {
     for (int i = 0; i < num_sensor_fields; i += 1) {
         lcd_gotoxy(sensor_field[i].data_x, sensor_field[i].data_y);
         if (sensor_field[i].temp == UNDEFINED_TEMP) {
@@ -177,11 +198,91 @@ static void encoder_init(void) {
 }
 
 
+static int find_sensor(ds18x20_addr_t addr) {
+    int i;
+    for (i = 0; i < temp_data.num_sensors; i += 1) {
+        if (temp_data.addr[i] == addr) {
+            break;
+        }
+    }
+    if (temp_data.addr[i] == addr) {
+        return i;
+    } else {
+        return 0;
+    }
+}
+
+
+static void show_sensors() {
+    bool addr_found = false;
+
+    // show temps for attached sensors
+    for (int i = 0; i < temp_data.num_sensors; i += 1) {
+        lcd_gotoxy((i % 4) * 5, (i / 4) + 1);
+        if (i == 0) {
+            lcd_puts("--.-");
+        } else {
+            snprintf(buf, sizeof(buf), "%4.1f", temp_data.temp[i]);
+            lcd_puts(buf);
+        }
+        if (temp_data.addr[i] == addr) {
+            addr_found = true;
+            blink_x = (i % 4) * 5;
+            blink_y = (i / 4) + 1;
+        }
+    }
+
+    // erase any unused slots
+    for (int i = temp_data.num_sensors; i < MAX_TEMP_SENSORS; i += 1) {
+        lcd_gotoxy((i % 4) * 5, (i / 4) + 1);
+        lcd_puts("    ");
+    }
+
+    // reset current address if sensor no longer available
+    if (!addr_found) {
+        addr = 0;
+        blink_x = 0;
+        blink_y = 1;
+    }
+}
+
+
+void new_mode_set(int i) {
+    i -= 1;
+    lcd_restore();
+    blink_x = set_field[i].data_x;
+    blink_y = set_field[i].data_y;
+    blink_enabled = true;
+    lcd_hide(blink_x, blink_y, 4);
+    timeout_count = 0;
+}
+
+
+void new_mode_sensor(int i) {
+    i -= 1;
+    lcd_gotoxy(0, 0);
+
+    lcd_puts(sensor_field[i].title);
+    if (i < 3) {
+        lcd_puts(" (1) ");
+    } else {
+        lcd_puts(" (2) ");
+    }
+
+    addr = sensor_field[i].addr;
+    show_sensors();
+    blink_enabled = true;
+    lcd_hide(blink_x, blink_y, 4);
+    timeout_count = 0;
+}
+
+
 static void new_mode() {
     blink_enabled = false;
     switch (mode) {
         case UI_MODE_SPLASH:
             lcd_clear();
+            blink_enabled = false;
             lcd_gotoxy(5, 1);
             lcd_puts("TETB dual");
             lcd_gotoxy(2, 2);
@@ -189,87 +290,72 @@ static void new_mode() {
             break;
 
         case UI_MODE_SLEEP:
-            lcd_clear();
-            lcd_puts("sleep");
+            lcd_switch_backlight(false);
+            blink_enabled = false;
             break;
 
         case UI_MODE_STATUS:
             lcd_clear();
+            lcd_switch_backlight(true);
+            blink_enabled = false;
             //        01234567890123456789
             lcd_puts("FRIDGE  1  FRIDGE  2");
             for (int i = 0; i < num_sensor_fields; i++) {
                 lcd_gotoxy(sensor_field[i].title_x, sensor_field[i].title_y);
                 lcd_puts(sensor_field[i].title);
             }
-            display_sensor_temps();
-
-            // reset selected item
-            item = 0;
+            status_display_sensor_temps();
+            addr = 0;
             break;
 
-        case UI_MODE_TEMP_ITEM:
+        case UI_MODE_SET_1:
             lcd_clear();
-            //        01234567890123456789
-            lcd_puts("TEMPERATURE SETTINGS");
-            for (int i = 0; i < num_temp_fields; i += 1) {
-                lcd_gotoxy(temp_field[i].title_x, temp_field[i].title_y);
-                lcd_puts(temp_field[i].title);
-                lcd_gotoxy(temp_field[i].data_x, temp_field[i].data_y);
-                temp_to_str(buf, sizeof(buf), temp_field[i].value);
+            lcd_puts("FRIDGE  1  FRIDGE  2");
+            for (int i = 0; i < num_set_fields; i += 1) {
+                lcd_gotoxy(set_field[i].title_x, set_field[i].title_y);
+                lcd_puts(set_field[i].title);
+                lcd_gotoxy(set_field[i].data_x, set_field[i].data_y);
+                value_to_temp_str(buf, sizeof(buf), set_field[i].value);
                 lcd_puts(buf);
             }
-            value = temp_field[item].value;
-            blink_x = temp_field[item].title_x;
-            blink_y = temp_field[item].title_y;
-            blink_enabled = true;
-            timeout_count = 2;                                 // start new 'blink' cycle
+            new_mode_set(1);
             break;
 
-        case UI_MODE_TEMP_EDIT:
-            // no need to clear screen
-            lcd_restore();
-            blink_x = temp_field[item].data_x;
-            blink_y = temp_field[item].data_y;
-            blink_enabled = true;
-            timeout_count = 2;
+        case UI_MODE_SET_2:
+            new_mode_set(2);
             break;
 
-        case UI_MODE_SENSOR_ITEM:
-            // re-draw screen in case we are entering from UI_MODE_SENSOR_EDIT
+        case UI_MODE_SET_3:
+            new_mode_set(3);
+            break;
+
+        case UI_MODE_SET_4:
+            new_mode_set(4);
+            break;
+
+        case UI_MODE_SENSOR_1:
             lcd_clear();
-            //        01234567890123456789
-            lcd_puts("SELECT SENSORS");
-            for (int i = 0; i < num_sensor_fields; i++) {
-                lcd_gotoxy(sensor_field[i].title_x, sensor_field[i].title_y);
-                lcd_puts(sensor_field[i].title);
-            }
-            display_sensor_temps();
-
-            addr = sensor_field[item].addr;
-            blink_x = sensor_field[item].title_x;
-            blink_y = sensor_field[item].title_y;
-            blink_enabled = true;
-            timeout_count = 2;                                 // start new 'blink' cycle
+            new_mode_sensor(1);
             break;
 
+        case UI_MODE_SENSOR_2:
+            new_mode_sensor(2);
+            break;
 
-        case UI_MODE_SENSOR_EDIT:
-            lcd_clear();
-            lcd_puts(sensor_field[item].title);
-            for (int i = 0; i < temp_data.num_sensors; i += 1) {
-                lcd_gotoxy(5 * (i % 4), 1 + (i / 4));
-                if (i == 0) {
-                    lcd_puts("--.-");
-                } else {
-                    snprintf(buf, sizeof(buf), "%4.1f", temp_data.temp[i]);
-                    lcd_puts(buf);
-                }
-                if (temp_data.addr[i] == addr) {
-                    blink_x = 5 * (i % 4);
-                    blink_y = 1 + (i / 4);
-                }
-            }
-            blink_enabled = true;
+        case UI_MODE_SENSOR_3:
+            new_mode_sensor(3);
+            break;
+
+        case UI_MODE_SENSOR_4:
+            new_mode_sensor(4);
+            break;
+
+        case UI_MODE_SENSOR_5:
+            new_mode_sensor(5);
+            break;
+
+        case UI_MODE_SENSOR_6:
+            new_mode_sensor(6);
             break;
 
         default:
@@ -293,26 +379,38 @@ static void update_sensor_temps(struct temp_data_t *pTemp) {
 }
 
 
-static void ui_event_handler(enum ui_event_t event, int value_change) {
-    static int prev_num_sensors;
+static void set_field_value_change(int i, int diff) {
+    if (set_field[i].value == UNDEFINED_TEMP) {
+        set_field[i].value = 0;
+    }
+    set_field[i].value += diff;
+    lcd_gotoxy(set_field[i].data_x, set_field[i].data_y);
+    value_to_temp_str(buf, sizeof(buf), set_field[i].value);
+    lcd_puts(buf);
+    timeout_count = 2;
+}
 
+
+static void sensor_addr_change(int i, int diff) {
+    i -= 1;
+    int sensor_index = find_sensor(addr);
+    sensor_index = (sensor_index + diff) % (int)temp_data.num_sensors;
+    if (sensor_index < 0) {
+        sensor_index += temp_data.num_sensors;
+    }
+    addr = temp_data.addr[sensor_index];
+    sensor_field[i].addr = addr;
+    blink_x = (sensor_index % 4) * 5;
+    blink_y = (sensor_index / 4) + 1;
+    lcd_hide(blink_x, blink_y, 4);
+    timeout_count = 0;
+}
+
+
+static void ui_event_handler(enum ui_event_t event, int value_change) {
     switch(event) {
         case UI_EVENT_BTN_PRESS:
-            lcd_restore();
-            if (mode == UI_MODE_SLEEP) {
-                lcd_switch_backlight(true);                 // wake from sleep
-            } else if (mode == UI_MODE_TEMP_EDIT) {
-                temp_field[item].value = value;             // commit current UI value
-                item = (item + 1) % num_temp_fields;        // advance to next setting
-                blink_x = temp_field[item].title_x;
-                blink_y = temp_field[item].title_y;
-            } else if (mode == UI_MODE_SENSOR_EDIT) {
-                sensor_field[item].addr = addr;             // commit current UI addr
-                item = (item + 1) % num_sensor_fields;      // advance to next setting
-                blink_x = sensor_field[item].title_x;
-                blink_y = sensor_field[item].title_y;
-            }
-
+            lcd_restore();                                  // unhide any previously-hidden field
             mode = next_state_btn_press[mode];
             new_mode();
             break;
@@ -323,8 +421,8 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
             break;
 
         case UI_EVENT_TIMEOUT:
-            // don't time out in SENSOR_EDIT mode
-            if (mode != UI_MODE_SENSOR_EDIT && mode != next_state_timeout[mode]) {
+            // don't timeout in sensor selection modes
+            if (mode != next_state_timeout[mode] && mode < UI_MODE_SENSOR_1) {
                 mode = next_state_timeout[mode];
                 new_mode();
             }
@@ -332,107 +430,64 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
 
         case UI_EVENT_VALUE_CHANGE:
             lcd_restore();
-            if (mode == UI_MODE_TEMP_ITEM) {
-                // update selected item
-                item += value_change;
-                while (item >= num_temp_fields) {
-                    item -= num_temp_fields;
-                }
-                while (item < 0) {
-                    item += num_temp_fields;
-                }
+            switch (mode) {
+                case UI_MODE_SET_1:
+                    set_field_value_change(0, value_change);
+                    break;
 
-                // update the current ui 'value'
-                value = temp_field[item].value;
+                case UI_MODE_SET_2:
+                    set_field_value_change(1, value_change);
+                    break;
 
-                // blink new item straight away
-                blink_x = temp_field[item].title_x;
-                blink_y = temp_field[item].title_y;
-                lcd_hide(blink_x, blink_y, 4);
-                timeout_count = 0;             // start new 'blink' cycle
+                case UI_MODE_SET_3:
+                    set_field_value_change(2, value_change);
+                    break;
 
-            } else if (mode == UI_MODE_TEMP_EDIT) {
-                lcd_gotoxy(blink_x, blink_y);
+                case UI_MODE_SET_4:
+                    set_field_value_change(3, value_change);
+                    break;
 
-                if (value == UNDEFINED_TEMP) {          // update ui value (NB this is not yet committed)
-                    value = 0;
-                }
-                value += value_change;
+                case UI_MODE_SENSOR_1:
+                    sensor_addr_change(1, value_change);
+                    break;
 
-                temp_to_str(buf, sizeof(buf), value);
-                lcd_puts(buf);
-                timeout_count = 2;                      // start new blink cycle
+                case UI_MODE_SENSOR_2:
+                    sensor_addr_change(2, value_change);
+                    break;
 
-            } else if (mode == UI_MODE_SENSOR_ITEM) {
-                // update selected item
-                item += value_change;
-                while (item >= num_sensor_fields) {
-                    item -= num_sensor_fields;
-                }
-                while (item < 0) {
-                    item += num_sensor_fields;
-                }
+                case UI_MODE_SENSOR_3:
+                    sensor_addr_change(3, value_change);
+                    break;
 
-                // update the current ui 'address'
-                addr = sensor_field[item].addr;
+                case UI_MODE_SENSOR_4:
+                    sensor_addr_change(4, value_change);
+                    break;
 
-                // blink new item straight away
-                blink_x = sensor_field[item].title_x;
-                blink_y = sensor_field[item].title_y;
-                lcd_hide(blink_x, blink_y, 4);
-                timeout_count = 0;         // start new 'blink' cycle
+                case UI_MODE_SENSOR_5:
+                    sensor_addr_change(5, value_change);
+                    break;
 
-                // update UI address
-                addr = sensor_field[item].addr;
-            } else if (mode == UI_MODE_SENSOR_EDIT) {
+                case UI_MODE_SENSOR_6:
+                    sensor_addr_change(6, value_change);
+                    break;
 
-                int i = 0;
-                if (temp_data.num_sensors > 1) {
-                    // find index of current sensor or default to zero
-                    for (i = 0; i < temp_data.num_sensors; i += 1) {
-                        if (temp_data.addr[i] == addr) {
-                            break;
-                        }
-                    }
-
-                    // update selection
-                    i += value_change;
-                    while (i >= (int)temp_data.num_sensors) {   // note cast to avoid signed/unsigned comparison
-                        i -= temp_data.num_sensors;
-                    }
-                    while (i < 0) {
-                        i += temp_data.num_sensors;
-                    }
-                }
-
-                addr = temp_data.addr[i];
-                blink_x = (i % 4) * 5;
-                blink_y = 1 + (i / 4);
-                lcd_hide(blink_x, blink_y, 4);
-                timeout_count = 0;
+                default:
+                    break;
             }
             break;
 
         case UI_EVENT_BLINK:
-            if (blink_enabled) {
+            if (mode == UI_MODE_STATUS) {
+                status_display_sensor_temps();
+            } else if (blink_enabled) {
                 if (timeout_count == 0) {
+                    if (mode >= UI_MODE_SENSOR_1) {
+                        // update list in sensor selection modes
+                        show_sensors();
+                    }
                     lcd_hide(blink_x, blink_y, 4);
                 } else if (timeout_count == 1) {
-                    if (mode == UI_MODE_SENSOR_EDIT) {
-                        // display new readings
-                        //
-                        for (int i = 0; i < temp_data.num_sensors; i += 1) {
-                            lcd_gotoxy((i % 4) * 5, 1 + (i / 4));
-                            if (i == 0) {
-                                lcd_puts("--.-");
-                            } else {
-                                snprintf(buf, sizeof(buf), "%4.1f", temp_data.temp[i]);
-                                lcd_puts(buf);
-                            }
-                        }
-                    } else {
-                        lcd_restore();
-                    }
+                    lcd_restore();
                 }
             }
             break;
@@ -444,38 +499,6 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
 
         case UI_EVENT_NEW_TEMP_DATA:
             update_sensor_temps(&(temp_data));
-            if (mode == UI_MODE_STATUS || mode == UI_MODE_SENSOR_ITEM) {
-                display_sensor_temps();
-            } else if (mode == UI_MODE_SENSOR_EDIT) {
-
-                // check whether sensors have changed
-                if (temp_data.num_sensors != prev_num_sensors) {
-
-                    // check whether existing selection is still available
-                    int i;
-                    for (i = 0; i < temp_data.num_sensors; i += 1) {
-                        if (temp_data.addr[i] == addr) {
-                            break;
-                        }
-                    }
-                    if (temp_data.addr[i] != addr) {
-                        // existing selection no longer available
-                        lcd_restore();
-                        addr = 0;
-                        blink_x = 0;
-                        blink_y = 1;
-                    }
-
-                    // remove any old readings that wouldn't be overwritten
-                    for (int i = temp_data.num_sensors; i < prev_num_sensors; i += 1) {
-                        lcd_gotoxy((i % 4) * 5, 1 + (i /4));
-                        lcd_puts("    ");
-                    }
-
-                    prev_num_sensors = temp_data.num_sensors;
-                };
-
-            } // UI_MODE_SENSOR_EDIT
             break;
 
         default:
@@ -486,8 +509,8 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
 
 
 static void control_fridges() {
-    if (cooling_needed(temp_field[0].value,         // fridge 1 set
-                       temp_field[1].value,         // fridge 1 min
+    if (cooling_needed(set_field[0].value,         // fridge 1 set
+                       set_field[1].value,         // fridge 1 min
                        sensor_field[0].temp,        // fridge 1 air
                        sensor_field[1].temp))       // fridge 1 keg1
     {

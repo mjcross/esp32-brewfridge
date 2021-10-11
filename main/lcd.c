@@ -33,6 +33,17 @@ hd44780_t lcd = {
     };
 
 
+void lcd_dump() {
+    for (int row = 0; row < 4; row ++) {
+        printf("\n");
+        for (int col = 0; col < 20; col ++) {
+            printf("%c", lcd_buffer[row * 20 + col]);
+        }
+    }
+    printf("\nhidden: '%s' at (%d, %d)\n", buf, hidden_col, hidden_row);
+}
+
+
 void lcd_clear() {
     hd44780_clear(&lcd);
     memset(lcd_buffer, 0x20, 5 * 20);
@@ -78,6 +89,10 @@ void lcd_switch_backlight(bool state) {
 
 void lcd_putc(const char c) {
     hd44780_putc(&lcd, c);
+    lcd_col += 1;
+    if (lcd_col > 19) {
+        lcd_col = 19;
+    }
 }
 
 
@@ -88,6 +103,7 @@ void lcd_puts(const char *buf) {
         len = 20 - lcd_col;
     }
     memcpy(lcd_buffer + lcd_row * 20 + lcd_col, buf, len);
+    lcd_col += len;
 }
 
 
