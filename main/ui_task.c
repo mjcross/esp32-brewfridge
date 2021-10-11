@@ -15,6 +15,7 @@
 #include "ui_task.h"
 #include "lcd.h"
 #include "sensor_task.h"
+#include "power.h"
 
 
 #define COL_1   0                   // dislay column positions
@@ -113,6 +114,13 @@ static struct temp_field_t temp_field[] = {
     { "min", COL_1, 2, COL_2, 2, UNDEFINED_TEMP },
     { "set", COL_3, 1, COL_4, 1, UNDEFINED_TEMP },
     { "min", COL_3, 2, COL_4, 2, UNDEFINED_TEMP }
+};
+
+static const char power_state_indicator[] = {
+    '*',    // pwr_on
+    '-',    // pwr_on_pending
+    ' ',    // pwr_off
+    '+',    // pwr_off_pending
 };
 
 static const int num_sensor_fields = sizeof(sensor_field) / sizeof(struct sensor_field_t);
@@ -409,8 +417,22 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
             if (blink_enabled) {
                 if (timeout_count == 0) {
                     lcd_hide(blink_x, blink_y, 4);
-                } else if (timeout_count == 1 && mode != UI_MODE_SENSOR_EDIT) {
-                    lcd_restore();
+                } else if (timeout_count == 1) {
+                    if (mode == UI_MODE_SENSOR_EDIT) {
+                        // display new readings
+                        //
+                        for (int i = 0; i < temp_data.num_sensors; i += 1) {
+                            lcd_gotoxy((i % 4) * 5, 1 + (i / 4));
+                            if (i == 0) {
+                                lcd_puts("--.-");
+                            } else {
+                                snprintf(buf, sizeof(buf), "%4.1f", temp_data.temp[i]);
+                                lcd_puts(buf);
+                            }
+                        }
+                    } else {
+                        lcd_restore();
+                    }
                 }
             }
             break;
@@ -453,19 +475,6 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
                     prev_num_sensors = temp_data.num_sensors;
                 };
 
-                // display new readings
-                //
-                for (int i = 0; i < temp_data.num_sensors; i += 1) {
-                    lcd_gotoxy((i % 4) * 5, 1 + (i / 4));
-                    if (i == 0) {
-                        lcd_puts("--.-");
-                    } else {
-                        snprintf(buf, sizeof(buf), "%4.1f", temp_data.temp[i]);
-                        lcd_puts(buf);
-                    }
-                }
-                timeout_count = 1;
-
             } // UI_MODE_SENSOR_EDIT
             break;
 
@@ -476,31 +485,25 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
 }
 
 
-void f1_power_on() {
-}
-
-void f1_power_off() {
-}
-
-bool thermostat(float set, float min, float air, float keg) {
-    printf("set %f, min %f, air %f, keg %f\n", set, min, air, keg);
-    return true;
-}
-
-
-// todo: add state indicators to status display
 static void control_fridges() {
-    if (thermostat(temp_field[0].value / 10.0,  // fridge 1 set
-                   temp_field[1].value / 10.0,  // fridge 1 min
-                   sensor_field[0].temp,        // fridge 1 air
-                   sensor_field[1].temp         // fridge 1 keg1
-                   )) {
+    if (cooling_needed(temp_field[0].value,         // fridge 1 set
+                       temp_field[1].value,         // fridge 1 min
+                       sensor_field[0].temp,        // fridge 1 air
+                       sensor_field[1].temp))       // fridge 1 keg1
+    {
         f1_power_on();
     } else {
         f1_power_off();
     }
 
-
+    if (mode == UI_MODE_STATUS) {
+        // 01234567890123456789
+        // FRIDGE *1  FRIDGE *2
+        lcd_gotoxy(7, 0);
+        lcd_putc(power_state_indicator[f1_state]);
+        lcd_gotoxy(18, 0);
+        lcd_putc(power_state_indicator[f2_state]);
+    }
 }
 
 

@@ -9,11 +9,14 @@
 #include "lcd.h"
 #include "ui_task.h"
 #include "sensor_task.h"
+#include "power.h"
 
 const char* TAG = LOG_TAG;
 
 void app_main()
 {
+    power_init();
+
     temperature_queue = xQueueCreate(1, sizeof(void *));
     if (!temperature_queue) {
         ESP_LOGE(TAG, "can't create temperature queue");
