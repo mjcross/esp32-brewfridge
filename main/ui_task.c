@@ -519,7 +519,12 @@ static void control_fridges() {
         f1_power_off();
     }
 
-    if (mode == UI_MODE_STATUS) {
+    if (mode == UI_MODE_STATUS
+        || mode == UI_MODE_SET_1
+        || mode == UI_MODE_SET_2
+        || mode == UI_MODE_SET_3
+        || mode == UI_MODE_SET_4)
+    {
         // 01234567890123456789
         // FRIDGE *1  FRIDGE *2
         lcd_gotoxy(7, 0);
