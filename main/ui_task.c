@@ -509,8 +509,8 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
 
 
 static void control_fridges() {
-    if (cooling_needed(set_field[0].value,         // fridge 1 set
-                       set_field[1].value,         // fridge 1 min
+    if (cooling_needed(set_field[0].value,          // fridge 1 set
+                       set_field[1].value,          // fridge 1 min
                        sensor_field[0].temp,        // fridge 1 air
                        sensor_field[1].temp))       // fridge 1 keg1
     {
@@ -519,10 +519,10 @@ static void control_fridges() {
         f1_power_off();
     }
 
-    if (cooling_needed(set_field[2].value,         // fridge 1 set
-                       set_field[3].value,         // fridge 1 min
-                       sensor_field[2].temp,        // fridge 1 air
-                       sensor_field[3].temp))       // fridge 1 keg1
+    if (cooling_needed(set_field[2].value,          // fridge 2 set
+                       set_field[3].value,          // fridge 2 min
+                       sensor_field[3].temp,        // fridge 2 air
+                       sensor_field[4].temp))       // fridge 2 keg1
     {
         f2_power_on();
     } else {
