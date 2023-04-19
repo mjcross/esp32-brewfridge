@@ -509,39 +509,38 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
 
 
 static void control_fridges() {
+    // control fride 1
     if (cooling_needed(set_field[0].value,          // fridge 1 set
                        set_field[1].value,          // fridge 1 min
                        sensor_field[0].temp,        // fridge 1 air
-                       sensor_field[1].temp))       // fridge 1 keg1
-    {
+                       sensor_field[1].temp)) {     // fridge 1 keg1
         f1_power_on();
     } else {
         f1_power_off();
     }
 
+    // control fridge 2
     if (cooling_needed(set_field[2].value,          // fridge 2 set
                        set_field[3].value,          // fridge 2 min
                        sensor_field[3].temp,        // fridge 2 air
-                       sensor_field[4].temp))       // fridge 2 keg1
-    {
+                       sensor_field[4].temp)) {     // fridge 2 keg1
         f2_power_on();
     } else {
         f2_power_off();
     }
 
-
-    if (mode == UI_MODE_STATUS
-        || mode == UI_MODE_SET_1
-        || mode == UI_MODE_SET_2
-        || mode == UI_MODE_SET_3
-        || mode == UI_MODE_SET_4)
-    {
-        // 01234567890123456789
-        // FRIDGE *1  FRIDGE *2
-        lcd_gotoxy(7, 0);
-        lcd_putc(power_state_indicator[f1_state]);
-        lcd_gotoxy(18, 0);
-        lcd_putc(power_state_indicator[f2_state]);
+    // display the fridge power state indicators (if appropriate)
+    if (mode == UI_MODE_STATUS ||
+        mode == UI_MODE_SET_1 ||
+        mode == UI_MODE_SET_2 ||
+        mode == UI_MODE_SET_3 ||
+        mode == UI_MODE_SET_4) {
+            // 01234567890123456789
+            // FRIDGE *1  FRIDGE *2
+            lcd_gotoxy(7, 0);
+            lcd_putc(power_state_indicator[f1_state]);
+            lcd_gotoxy(18, 0);
+            lcd_putc(power_state_indicator[f2_state])
     }
 }
 
@@ -551,20 +550,22 @@ void ui_task(void *pParams) {
 
     lcd_init();
     encoder_init();
-    new_mode();         // set up first screen
+    new_mode(); // set up the first screen
 
     static int long_timeout_count;
     static int sleep_timeout_count;
 
+    // UI event loop
+    //
     for(;;) {
-        // apply thermostat control
+        // always apply thermostat control
         control_fridges();
 
-        // wait for encoder events
+        // wait up to `UI_BLINK_MS` for an event from the rotary encoder
         //
         if (xQueueReceive(encoder_event_queue, &e, pdMS_TO_TICKS(UI_BLINK_MS)) == pdTRUE) {
 
-            switch (e.type) {                               // handle event
+            switch (e.type) {                               // handle the encoder event
                 case RE_ET_BTN_CLICKED:
                     ui_event_handler(UI_EVENT_BTN_PRESS, 0);
                     break;
@@ -581,10 +582,12 @@ void ui_task(void *pParams) {
                     break;
             }
 
-            long_timeout_count = 0;                         // reset inactivity timers
+            long_timeout_count = 0;                         // reset the inactivity timers
             sleep_timeout_count = 0;
 
         } else {
+            // if there are no rotary encoder events then manage the periodic "housekeeping" events
+            //
             timeout_count = (timeout_count + 1) % UI_BLINKS_PER_FLASH;
             ui_event_handler(UI_EVENT_BLINK, 0);
 
@@ -599,14 +602,14 @@ void ui_task(void *pParams) {
             }
         }
 
-        // check for new temperature data
+        // always check for new temperature data
         //
         struct temp_data_t *pTemp_data;
         if (xQueuePeek(temperature_queue, &(pTemp_data), 0) == pdTRUE) {
             temp_data = *pTemp_data;                        // take local copy
             ui_event_handler(UI_EVENT_NEW_TEMP_DATA, 0);    // process local copy
 
-            // un-block queue so sending task can continue
+            // un-block the queue so that the sending task can continue
             xQueueReceive(temperature_queue, &(pTemp_data), 0);
         }
 
