@@ -35,6 +35,8 @@ enum ui_mode_t {
     UI_MODE_SET_2,
     UI_MODE_SET_3,
     UI_MODE_SET_4,
+    UI_MODE_SET_5,
+    UI_MODE_SET_6,
     UI_MODE_SENSOR_1,
     UI_MODE_SENSOR_2,
     UI_MODE_SENSOR_3,
@@ -64,7 +66,7 @@ struct sensor_field_t {
 };
 
 struct set_field_t {
-    const char title[5];
+    const char title[6];
     const int title_x;
     const int title_y;
     const int data_x;
@@ -83,7 +85,9 @@ static const enum ui_mode_t next_state_btn_press[] = {
     UI_MODE_SET_2,                  // set_1 -> set_2
     UI_MODE_SET_3,                  // set_2 -> set_3
     UI_MODE_SET_4,                  // set_3 -> set_4
-    UI_MODE_SET_1,                  // set_4 -> set_1
+    UI_MODE_SET_5,                  // set_4 -> set_5
+    UI_MODE_SET_6,                  // set_5 -> set_6
+    UI_MODE_SET_1,                  // set_6 -> set_1
     UI_MODE_SENSOR_2,               // sensor_1 -> sensor_2
     UI_MODE_SENSOR_3,               // sensor_2 -> sensor_3
     UI_MODE_SENSOR_4,               // sensor_3 -> sensor_4
@@ -100,7 +104,9 @@ static const enum ui_mode_t next_state_long_press[] = {
     UI_MODE_STATUS,                 // set_2 -> status
     UI_MODE_STATUS,                 // set_3 -> status
     UI_MODE_STATUS,                 // set_4 -> status
-    UI_MODE_STATUS,                 // sensor_1 -> status
+    UI_MODE_STATUS,                 // set_5 -> status
+    UI_MODE_STATUS,                 // set_6 -> status
+    UI_MODE_STATUS,                 // sensor_1 -> status       // todo: save sensor addresses
     UI_MODE_STATUS,                 // sensor_2 -> status
     UI_MODE_STATUS,                 // sensor_3 -> status
     UI_MODE_STATUS,                 // sensor_4 -> status
@@ -115,7 +121,9 @@ static const enum ui_mode_t next_state_timeout[] = {
     UI_MODE_STATUS,                 // set_2 -> status
     UI_MODE_STATUS,                 // set_3 -> status
     UI_MODE_STATUS,                 // set_4 -> status
-    UI_MODE_STATUS,                 // sensor_1 -> status
+    UI_MODE_STATUS,                 // set_5 -> status
+    UI_MODE_STATUS,                 // set_6 -> status
+    UI_MODE_STATUS,                 // sensor_1 -> status       // todo: save sensor addresses
     UI_MODE_STATUS,                 // sensor_2 -> status
     UI_MODE_STATUS,                 // sensor_3 -> status
     UI_MODE_STATUS,                 // sensor_4 -> status
@@ -123,20 +131,42 @@ static const enum ui_mode_t next_state_timeout[] = {
     UI_MODE_STATUS                  // sensor_6 -> status
 };
 
+// screen positions of the temperature sensor fields
+// 
+//      01234567890123456789
+//      |    |     |    |
+// 0    FRIDGE *1  FRIDGE +2
+// 1    beer 12.3  beer 12.3
+// 2    air  10.0  air  10.0
+// 3    heat 12.3  heat 12.3
+//
 static struct sensor_field_t sensor_field[] = {
-    { "air",  COL_1, 1, COL_2, 1, 0, UNDEFINED_TEMP },
-    { "keg1", COL_1, 2, COL_2, 2, 0, UNDEFINED_TEMP },
-    { "keg2", COL_1, 3, COL_2, 3, 0, UNDEFINED_TEMP },
-    { "air",  COL_3, 1, COL_4, 1, 0, UNDEFINED_TEMP },
-    { "keg1", COL_3, 2, COL_4, 2, 0, UNDEFINED_TEMP },
-    { "keg2", COL_3, 3, COL_4, 3, 0, UNDEFINED_TEMP }
+    // title[5], title_x, title_y, data_x, data_y, romcode, value
+    { "beer",   COL_1, 1, COL_2, 1, 0, UNDEFINED_TEMP },
+    { "air",    COL_1, 2, COL_2, 2, 0, UNDEFINED_TEMP },
+    { "heat",   COL_1, 3, COL_2, 3, 0, UNDEFINED_TEMP },
+    { "beer",   COL_3, 1, COL_4, 1, 0, UNDEFINED_TEMP },
+    { "air",    COL_3, 2, COL_4, 2, 0, UNDEFINED_TEMP },
+    { "heat",   COL_3, 3, COL_4, 3, 0, UNDEFINED_TEMP }
 };
 
+// screen positions of the settings fields
+// 
+//      01234567890123456789
+//      |    |     |    |
+// 0    FRIDGE +1  FRIDGE *2
+// 1    set	 12.3  set  12.3
+// 2    cool- 4.5  cool- off
+// 3    heat+ off  heat+ 2.0
+//
 static struct set_field_t set_field[] = {
-    { "set", COL_1, 1, COL_2, 1, UNDEFINED_TEMP },
-    { "min", COL_1, 2, COL_2, 2, UNDEFINED_TEMP },
-    { "set", COL_3, 1, COL_4, 1, UNDEFINED_TEMP },
-    { "min", COL_3, 2, COL_4, 2, UNDEFINED_TEMP }
+    // title[6], title_x, title_y, data_x, data_y, value
+    { "set",    COL_1, 1, COL_2, 1, UNDEFINED_TEMP },
+    { "set",    COL_3, 1, COL_4, 1, UNDEFINED_TEMP },
+    { "cool-",  COL_1, 2, COL_2, 2, UNDEFINED_TEMP },
+    { "cool-",  COL_3, 2, COL_4, 2, UNDEFINED_TEMP },
+    { "heat+",  COL_1, 3, COL_2, 3, UNDEFINED_TEMP },
+    { "heat+",  COL_3, 3, COL_4, 3, UNDEFINED_TEMP }
 };
 
 static const char power_state_indicator[] = {
@@ -144,6 +174,7 @@ static const char power_state_indicator[] = {
     '-',    // pwr_on_pending
     ' ',    // pwr_off
     '+',    // pwr_off_pending
+    '^'     // pwr_heating
 };
 
 static const int num_sensor_fields = sizeof(sensor_field) / sizeof(struct sensor_field_t);
@@ -165,7 +196,7 @@ bool blink_enabled;
 
 static void value_to_temp_str(char *buf, size_t buflen, int temp) {
     if (temp == UNDEFINED_TEMP) {
-        snprintf(buf, buflen, "--.-");
+        snprintf(buf, buflen, " off");
     } else {
         snprintf(buf, buflen, "%4.1f", temp / 10.0);
     }
@@ -176,7 +207,7 @@ static void status_display_sensor_temps(void) {
     for (int i = 0; i < num_sensor_fields; i += 1) {
         lcd_gotoxy(sensor_field[i].data_x, sensor_field[i].data_y);
         if (sensor_field[i].temp == UNDEFINED_TEMP) {
-            lcd_puts("--.-");
+            lcd_puts(" off");
         } else {
             snprintf(buf, sizeof(buf), "%4.1f", sensor_field[i].temp);
             lcd_puts(buf);
@@ -198,6 +229,7 @@ static void encoder_init(void) {
 }
 
 
+// todo: decide whether this is still needed
 static int find_sensor(ds18x20_addr_t addr) {
     int i;
     for (i = 0; i < temp_data.num_sensors; i += 1) {
@@ -216,13 +248,14 @@ static int find_sensor(ds18x20_addr_t addr) {
 static void show_sensors() {
     bool addr_found = false;
 
-    // show temps for attached sensors
+    // show abbreviated romcodes of attached sensors
     for (int i = 0; i < temp_data.num_sensors; i += 1) {
         lcd_gotoxy((i % 4) * 5, (i / 4) + 1);
         if (i == 0) {
-            lcd_puts("--.-");
+            lcd_puts(" off");
         } else {
-            snprintf(buf, sizeof(buf), "%4.1f", temp_data.temp[i]);
+            // show CRC and most significant address byte
+            snprintf(buf, sizeof(buf), "%04x", (uint16_t)(temp_data.addr[i] >> (64 - 16)));
             lcd_puts(buf);
         }
         if (temp_data.addr[i] == addr) {
@@ -264,9 +297,9 @@ void new_mode_sensor(int i) {
 
     lcd_puts(sensor_field[i].title);
     if (i < 3) {
-        lcd_puts(" fridge 1 ");
+        lcd_puts(" FRIDGE 1 ");
     } else {
-        lcd_puts(" fridge 2 ");
+        lcd_puts(" FRIDGE 2 ");
     }
 
     addr = sensor_field[i].addr;
@@ -295,6 +328,7 @@ static void new_mode() {
             break;
 
         case UI_MODE_STATUS:
+            // todo: if 'sensor address changed' then save sensors
             lcd_clear();
             lcd_switch_backlight(true);
             blink_enabled = false;
@@ -331,6 +365,14 @@ static void new_mode() {
 
         case UI_MODE_SET_4:
             new_mode_set(4);
+            break;
+
+        case UI_MODE_SET_5:
+            new_mode_set(5);
+            break;
+
+        case UI_MODE_SET_6:
+            new_mode_set(6);
             break;
 
         case UI_MODE_SENSOR_1:
@@ -384,6 +426,9 @@ static void set_field_value_change(int i, int diff) {
         set_field[i].value = 0;
     }
     set_field[i].value += diff;
+    if (set_field[i].value < 0) {
+        set_field[i].value = UNDEFINED_TEMP;
+    }
     lcd_gotoxy(set_field[i].data_x, set_field[i].data_y);
     value_to_temp_str(buf, sizeof(buf), set_field[i].value);
     lcd_puts(buf);
@@ -391,6 +436,7 @@ static void set_field_value_change(int i, int diff) {
 }
 
 
+// todo: might need to fiddle with this
 static void sensor_addr_change(int i, int diff) {
     i -= 1;
     int sensor_index = find_sensor(addr);
@@ -508,6 +554,7 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
 }
 
 
+// todo: add heating
 static void control_fridges() {
     // control fride 1
     if (cooling_needed(set_field[0].value,          // fridge 1 set
@@ -530,13 +577,9 @@ static void control_fridges() {
     }
 
     // display the fridge power state indicators (if appropriate)
-    if (mode == UI_MODE_STATUS ||
-        mode == UI_MODE_SET_1 ||
-        mode == UI_MODE_SET_2 ||
-        mode == UI_MODE_SET_3 ||
-        mode == UI_MODE_SET_4) {
-            // 01234567890123456789
-            // FRIDGE *1  FRIDGE *2
+    if (mode >= UI_MODE_STATUS && mode < UI_MODE_SENSOR_1) {
+            //      01234567890123456789
+            //      FRIDGE *1  FRIDGE +2
             lcd_gotoxy(7, 0);
             lcd_putc(power_state_indicator[f1_state]);
             lcd_gotoxy(18, 0);
