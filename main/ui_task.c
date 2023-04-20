@@ -188,7 +188,7 @@ static int timeout_count;
 static struct temp_data_t temp_data;
 static int blink_x;
 static int blink_y;
-bool blink_enabled;
+static bool blink_enabled;
 
 
 // function definitions
@@ -491,6 +491,14 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
 
                 case UI_MODE_SET_4:
                     set_field_value_change(3, value_change);
+                    break;
+
+                case UI_MODE_SET_5:
+                    set_field_value_change(4, value_change);
+                    break;
+
+                case UI_MODE_SET_6:
+                    set_field_value_change(5, value_change);
                     break;
 
                 case UI_MODE_SENSOR_1:
