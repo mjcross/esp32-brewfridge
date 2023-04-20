@@ -88,28 +88,33 @@ void f2_power_off(){
     }};
 
 
-bool cooling_needed(int set_value, int min_value, float air_temp, float keg_temp) {
-    float set_temp = set_value / 10.0;
-    float min_temp = min_value / 10.0;
+bool cooling_needed(int set_value, int cool_offset_value, float beer_temp, float air_temp) {
+    float set_temp = set_value / 10.0;  // the UI stores the settings values as integers
+    float min_temp = set_temp - cool_offset_value / 10.0;
 
     bool set_temp_defined = (set_value != UNDEFINED_TEMP);
-    bool min_temp_defined = (min_value != UNDEFINED_TEMP);
+    bool min_temp_defined = (cool_offset_value != UNDEFINED_TEMP);
     bool air_sensor_connected = (air_temp != UNDEFINED_TEMP);
-    bool keg_sensor_connected = (keg_temp != UNDEFINED_TEMP);
+    bool beer_sensor_connected = (beer_temp != UNDEFINED_TEMP);
 
-    // abort if there's no set temp
-    if (!set_temp_defined) return false;
-
-    // abort if either the air or the keg are already at minimum temp
-    if (min_temp_defined) {
-        if (air_sensor_connected && air_temp <= min_temp) return false;
-        if (keg_sensor_connected && keg_temp <= min_temp) return false;
+    if (set_temp_defined == false) {
+        return false;                   // we can't do anything without a set_temp
     }
 
-    // request cooling if either the air or the keg are too warm
-    if (air_sensor_connected && air_temp > set_temp) return true;
-    if (keg_sensor_connected && keg_temp > set_temp) return true;
+    if (min_temp_defined) {
+        if (air_sensor_connected == false || beer_sensor_connected == false) {
+            return false;               // for min_temp we must have both an air and a beer sensor
+        }
+        return (beer_temp > set_temp && air_temp > min_temp);
+    }
 
-    // in all other cases no cooling is required
-    return false;
+    if (air_sensor_connected) {         // manage the air temperature only
+        return (air_temp > set_temp);
+    }
+
+    if (beer_sensor_connected) {        // fall back to managing the beer temperature
+        return (beer_temp > set_temp);
+    }
+
+    return false;                       // we don't have either sensor
 }

@@ -139,7 +139,12 @@ static const enum ui_mode_t next_state_timeout[] = {
 // 1    beer 12.3  beer 12.3
 // 2    air  10.0  air  10.0
 // 3    heat 12.3  heat 12.3
-//
+#define F1_SENSOR_BEER  0
+#define F1_SENSOR_AIR   1
+#define F1_SENSOR_HEAT  2
+#define F2_SENSOR_BEER  3
+#define F2_SENSOR_AIR   4
+#define F2_SENSOR_HEAT  5
 static struct sensor_field_t sensor_field[] = {
     // title[5], title_x, title_y, data_x, data_y, romcode, value
     { "beer",   COL_1, 1, COL_2, 1, 0, UNDEFINED_TEMP },
@@ -158,7 +163,12 @@ static struct sensor_field_t sensor_field[] = {
 // 1    set	 12.3  set  12.3
 // 2    cool- 4.5  cool- off
 // 3    heat+ off  heat+ 2.0
-//
+#define F1_SET  0
+#define F2_SET  1
+#define F1_COOL 2
+#define F2_COOL 3
+#define F1_HEAT 4
+#define F2_HEAT 5
 static struct set_field_t set_field[] = {
     // title[6], title_x, title_y, data_x, data_y, value
     { "set",    COL_1, 1, COL_2, 1, UNDEFINED_TEMP },
@@ -562,23 +572,24 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
 }
 
 
-// todo: add heating
+// todo: add heater control
 static void control_fridges() {
-    // control fride 1
-    if (cooling_needed(set_field[0].value,          // fridge 1 set
-                       set_field[1].value,          // fridge 1 min
-                       sensor_field[0].temp,        // fridge 1 air
-                       sensor_field[1].temp)) {     // fridge 1 keg1
+
+    // control fridge 1
+    if (cooling_needed(set_field[F1_SET].value,
+                       set_field[F1_COOL].value,
+                       sensor_field[F1_SENSOR_BEER].temp,
+                       sensor_field[F1_SENSOR_AIR].temp)) {
         f1_power_on();
     } else {
         f1_power_off();
     }
 
     // control fridge 2
-    if (cooling_needed(set_field[2].value,          // fridge 2 set
-                       set_field[3].value,          // fridge 2 min
-                       sensor_field[3].temp,        // fridge 2 air
-                       sensor_field[4].temp)) {     // fridge 2 keg1
+    if (cooling_needed(set_field[F2_SET].value,
+                       set_field[F2_COOL].value,
+                       sensor_field[F2_SENSOR_BEER].temp,
+                       sensor_field[F2_SENSOR_AIR].temp)) {
         f2_power_on();
     } else {
         f2_power_off();
