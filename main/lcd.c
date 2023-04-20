@@ -63,8 +63,8 @@ void lcd_init() {
     ESP_ERROR_CHECK(i2cdev_init());                     // initialise the I2C library
     memset(&pcf8574, 0, sizeof(i2c_dev_t));
     ESP_ERROR_CHECK(pcf8574_init_desc(&pcf8574,         // struct i2c_dev_t*
-                                      0,                // i2c_port_t
                                       I2C_ADDR,         // from define.h
+                                      0,                // i2c_port_t
                                       SDA_GPIO,         // .. .. ..
                                       SCL_GPIO));       // .. .. ..
 
