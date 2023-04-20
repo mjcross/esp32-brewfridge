@@ -540,7 +540,7 @@ static void control_fridges() {
             lcd_gotoxy(7, 0);
             lcd_putc(power_state_indicator[f1_state]);
             lcd_gotoxy(18, 0);
-            lcd_putc(power_state_indicator[f2_state])
+            lcd_putc(power_state_indicator[f2_state]);
     }
 }
 
