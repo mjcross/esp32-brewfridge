@@ -23,7 +23,7 @@ void power_init() {
 }
 
 
-void f1_power_on() {
+void f1_power_on () {
     TickType_t now = xTaskGetTickCount();
     if (f1_state == PWR_OFF_PENDING) {
         f1_state = PWR_ON;  // cancel pending power off
@@ -40,7 +40,7 @@ void f1_power_on() {
 };
 
 
-void f2_power_on() {
+void f2_power_on () {
     TickType_t now = xTaskGetTickCount();
     if (f2_state == PWR_OFF_PENDING) {
         f2_state = PWR_ON;  // cancel pending power off
@@ -56,7 +56,7 @@ void f2_power_on() {
 };
 
 
-void f1_power_off() {
+void f1_power_off () {
     TickType_t now = xTaskGetTickCount();
     if (f1_state == PWR_ON_PENDING) {
         f1_state = PWR_OFF;  // cancel pending power on
@@ -73,7 +73,7 @@ void f1_power_off() {
 };
 
 
-void f2_power_off(){
+void f2_power_off (){
     TickType_t now = xTaskGetTickCount();
     if (f2_state == PWR_ON_PENDING) {
         f2_state = PWR_OFF;  // cancel pending power on
@@ -88,9 +88,9 @@ void f2_power_off(){
     }};
 
 
-bool cooling_needed(int set_value, int cool_offset_value, float beer_temp, float air_temp) {
+bool cooling_needed (int set_value, int cool_offset_value, float beer_temp, float air_temp) {
     float set_temp = set_value / 10.0;  // the UI stores the settings values as integers
-    float min_temp = set_temp - cool_offset_value / 10.0;
+    float min_temp = beer_temp - cool_offset_value / 10.0;
 
     bool set_temp_defined = (set_value != UNDEFINED_TEMP);
     bool min_temp_defined = (cool_offset_value != UNDEFINED_TEMP);
@@ -116,5 +116,37 @@ bool cooling_needed(int set_value, int cool_offset_value, float beer_temp, float
         return (beer_temp > set_temp);
     }
 
-    return false;                       // we don't have either sensor
+    return false;
+}
+
+
+bool heating_needed (int set_value, int heat_offset_value, float beer_temp, float heater_temp) {
+    float set_temp = set_value / 10.0;  // the UI stores the settings values as integers
+    float max_temp = beer_temp + heat_offset_value / 10.0;
+
+    bool set_temp_defined = (set_value != UNDEFINED_TEMP);
+    bool max_temp_defined = (heat_offset_value != UNDEFINED_TEMP);
+    bool heater_sensor_connected = (heater_temp != UNDEFINED_TEMP);
+    bool beer_sensor_connected = (beer_temp != UNDEFINED_TEMP);
+
+    if (set_temp_defined == false) {
+        return false;                   // we can't do anything without a set_temp
+    }
+
+    if (max_temp_defined) {
+        if (heater_sensor_connected == false || beer_sensor_connected == false) {
+            return false;               // for max_temp we must have both a heater and a beer sensor
+        }
+        return (beer_temp < set_temp && heater_temp < max_temp);
+    }
+
+    if (heater_sensor_connected) {      // manage the heater temperature only
+        return (heater_temp < set_temp);
+    }
+
+    if (beer_sensor_connected) {        // fall back to managing the beer temperature
+        return (beer_temp < set_temp);
+    }
+
+    return false;
 }

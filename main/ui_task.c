@@ -22,7 +22,6 @@
 #define COL_2   5
 #define COL_3   11
 #define COL_4   16
-#define FIELD_INDICATOR_CHR 0x7e    // 0x7e = right-pointing arrow
 
 
 // type definitions
@@ -183,7 +182,7 @@ static const char power_state_indicator[] = {
     '*',    // pwr_on
     '-',    // pwr_on_pending
     ' ',    // pwr_off
-    '+',    // pwr_off_pending
+    '.',    // pwr_off_pending
     '^'     // pwr_heating
 };
 
@@ -598,7 +597,7 @@ static void control_fridges() {
     // display the fridge power state indicators (if appropriate)
     if (mode >= UI_MODE_STATUS && mode < UI_MODE_SENSOR_1) {
             //      01234567890123456789
-            //      FRIDGE *1  FRIDGE +2
+            //      FRIDGE *1  FRIDGE ^2
             lcd_gotoxy(7, 0);
             lcd_putc(power_state_indicator[f1_state]);
             lcd_gotoxy(18, 0);
