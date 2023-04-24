@@ -4,88 +4,114 @@
 #include "defines.h"
 #include "types.h"
 
-static TickType_t f1_earliest_on, f1_earliest_off, f2_earliest_on, f2_earliest_off;
+enum power_state_t power_state[2];     // shared
 
-enum cooling_state_t f1_state, f2_state;     // shared
+static const gpio_num_t gpio_fridge_relay[] = { F1_RELAY_GPIO, F2_RELAY_GPIO };
+static const gpio_num_t gpio_heater_ssr[] = { F1_SSR_GPIO, F2_SSR_GPIO };
 
 
+/// @brief Initialises the power states and GPIO pins for both fridges
 void power_init() {
-    gpio_reset_pin(     F1_RELAY_GPIO                       );
-    gpio_set_level(     F1_RELAY_GPIO, 0                    );
-    gpio_set_direction( F1_RELAY_GPIO, GPIO_MODE_DEF_OUTPUT );
+    for (int fridge_num = 0; fridge_num < 2; fridge_num += 1) {
+        gpio_reset_pin(gpio_fridge_relay[fridge_num]);
+        gpio_set_level(gpio_fridge_relay[fridge_num], 0);
+        gpio_set_direction(gpio_fridge_relay[fridge_num], GPIO_MODE_DEF_OUTPUT);
 
-    gpio_reset_pin(     F2_RELAY_GPIO                       );
-    gpio_set_level(     F2_RELAY_GPIO, 0                    );
-    gpio_set_direction( F2_RELAY_GPIO, GPIO_MODE_DEF_OUTPUT );
+        gpio_reset_pin(gpio_heater_ssr[fridge_num]);
+        gpio_set_level(gpio_heater_ssr[fridge_num], 0);
+        gpio_set_direction(gpio_heater_ssr[fridge_num], GPIO_MODE_DEF_OUTPUT);
 
-    f1_state = PWR_OFF;
-    f2_state = PWR_OFF;
+        power_state[fridge_num] = PWR_OFF;
+    }
 }
 
 
-void f1_power_on () {
+/// @brief Updates the power state for a fridge and controls its relay/SSR GPIOs.
+///
+/// This function should be called frequently for each fridge, e.g. on every 
+/// iteration of the UI event loop.
+///
+/// @param fridge_num the index of the fridge (0 or 1)
+/// @param cool true to request cooling, otherwise false
+/// @param heat true to request heating, otherwise false
+void power_update(int fridge_num, bool cool, bool heat) {
+    static TickType_t earliest_cooling_start[2];
+    static TickType_t earliest_cooling_stop[2];
+    static TickType_t latest_cooling_stop[2];
+    static TickType_t earliest_heating_start[2];
+
     TickType_t now = xTaskGetTickCount();
-    if (f1_state == PWR_OFF_PENDING) {
-        f1_state = PWR_ON;  // cancel pending power off
-    } else if (f1_state == PWR_OFF || f1_state == PWR_ON_PENDING) {
-        //printf("REQUEST ON... now %d, earliest_on %d\n", now, f1_earliest_on);
-        if (now >= f1_earliest_on) {
-            gpio_set_level(F1_RELAY_GPIO, 1);
-            f1_state = PWR_ON;
-            f1_earliest_off = now + pdMS_TO_TICKS(RELAY_INTERVAL_MS);
-        } else {
-            f1_state = PWR_ON_PENDING;
-        }
+
+    switch (power_state[fridge_num]) {
+        case PWR_OFF:
+            if (cool == false || heat == false) {
+                if (cool) {
+                    power_state[fridge_num] = PWR_COOL_REQUESTED;
+                }
+                if (heat) {
+                    power_state[fridge_num] = PWR_HEAT_REQUESTED;
+                }
+            }
+            break;
+
+        case PWR_COOL_REQUESTED:
+            if (cool == false) {
+                // cancel request
+                power_state[fridge_num] = PWR_OFF;
+            } else if (now >= earliest_cooling_start[fridge_num]) {
+                // start cooling
+                earliest_cooling_stop[fridge_num] = now + MIN_COOLING_TIME;
+                latest_cooling_stop[fridge_num] = now + MAX_COOLING_TIME;
+                gpio_set_level (gpio_fridge_relay[fridge_num], 1);
+                power_state[fridge_num] = PWR_COOLING;
+            }
+            break;
+
+        case PWR_COOLING:
+            if (cool == false) {
+                power_state[fridge_num] = PWR_COOL_OVERRUN;
+            } else if (now >= latest_cooling_stop[fridge_num]) {
+                // reached MAX_COOLING_TIME
+                earliest_cooling_start[fridge_num] = now + MIN_OFF_TIME;
+                earliest_heating_start[fridge_num] = now + MIN_OFF_TIME;
+                gpio_set_level (gpio_fridge_relay[fridge_num], 0);
+                power_state[fridge_num] = PWR_OFF;
+            }
+            break;
+
+        case PWR_COOL_OVERRUN:
+            if (cool == true) {
+                power_state[fridge_num] = PWR_COOLING;
+            } else if (now >= earliest_cooling_stop[fridge_num]) {
+                // stop cooling
+                earliest_cooling_start[fridge_num] = now + MIN_OFF_TIME;
+                earliest_heating_start[fridge_num] = now + MIN_OFF_TIME;
+                gpio_set_level (gpio_fridge_relay[fridge_num], 0);
+                power_state[fridge_num] = PWR_OFF;
+            }
+            break;
+
+            case PWR_HEAT_REQUESTED:
+            if (heat == false) {
+                // cancel request
+                power_state[fridge_num] = PWR_OFF;
+            } else if (now >= earliest_heating_start[fridge_num]) {
+                // start heating
+                gpio_set_level (gpio_heater_ssr[fridge_num], 1);
+                power_state[fridge_num] = PWR_HEATING;
+            }
+            break;
+
+            case PWR_HEATING:
+            if (heat == false) {
+                // stop heating
+                earliest_cooling_start[fridge_num] = now + MIN_OFF_TIME;
+                gpio_set_level (gpio_heater_ssr[fridge_num], 0);
+                power_state[fridge_num] = PWR_OFF;
+            }
+            break;
     }
-};
-
-
-void f2_power_on () {
-    TickType_t now = xTaskGetTickCount();
-    if (f2_state == PWR_OFF_PENDING) {
-        f2_state = PWR_ON;  // cancel pending power off
-    } else if (f2_state == PWR_OFF || f2_state == PWR_ON_PENDING) {
-        if (now >= f2_earliest_on) {
-            gpio_set_level(F2_RELAY_GPIO, 1);
-            f2_state = PWR_ON;
-            f2_earliest_off = now + pdMS_TO_TICKS(RELAY_INTERVAL_MS);
-        } else {
-            f2_state = PWR_ON_PENDING;
-        }
-    }
-};
-
-
-void f1_power_off () {
-    TickType_t now = xTaskGetTickCount();
-    if (f1_state == PWR_ON_PENDING) {
-        f1_state = PWR_OFF;  // cancel pending power on
-    } else if (f1_state == PWR_ON || f1_state == PWR_OFF_PENDING) {
-        //printf("REQUEST OFF... now %d, earliest_off %d\n", now, f1_earliest_off);
-        if (now >= f1_earliest_off) {
-            gpio_set_level(F1_RELAY_GPIO, 0);
-            f1_state = PWR_OFF;
-            f1_earliest_on = now + pdMS_TO_TICKS(RELAY_INTERVAL_MS);
-        } else {
-            f1_state = PWR_OFF_PENDING;
-        }
-    }
-};
-
-
-void f2_power_off (){
-    TickType_t now = xTaskGetTickCount();
-    if (f2_state == PWR_ON_PENDING) {
-        f2_state = PWR_OFF;  // cancel pending power on
-    } else if (f2_state == PWR_ON || f2_state == PWR_OFF_PENDING) {
-        if (now >= f2_earliest_off) {
-            gpio_set_level(F2_RELAY_GPIO, 0);
-            f2_state = PWR_OFF;
-            f2_earliest_on = now + pdMS_TO_TICKS(RELAY_INTERVAL_MS);
-        } else {
-            f2_state = PWR_OFF_PENDING;
-        }
-    }};
+}
 
 
 bool cooling_needed (int set_value, int cool_offset_value, float beer_temp, float air_temp) {

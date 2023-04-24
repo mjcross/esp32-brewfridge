@@ -11,12 +11,13 @@ struct temp_data_t {
 
 #define UNDEFINED_TEMP -999                 // displayed as ' off'
 
-enum cooling_state_t {
-    PWR_ON,
-    PWR_ON_PENDING,
+enum power_state_t {
     PWR_OFF,
-    PWR_OFF_PENDING,
-    PWR_HEATING
+    PWR_COOL_REQUESTED,
+    PWR_COOLING,
+    PWR_COOL_OVERRUN,
+    PWR_HEAT_REQUESTED,
+    PWR_HEATING                             // no heating overrun required
 };
 
 #endif // TYPES_H
