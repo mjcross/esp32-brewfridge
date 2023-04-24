@@ -10,7 +10,7 @@ static const gpio_num_t gpio_fridge_relay[] = { F1_RELAY_GPIO, F2_RELAY_GPIO };
 static const gpio_num_t gpio_heater_ssr[] = { F1_SSR_GPIO, F2_SSR_GPIO };
 
 
-/// @brief Initialises the power states and GPIO pins for both fridges
+/// @brief Initialises the power state of the fridges and the GPIO pins
 void power_init() {
     for (int fridge_num = 0; fridge_num < 2; fridge_num += 1) {
         gpio_reset_pin(gpio_fridge_relay[fridge_num]);
@@ -114,6 +114,12 @@ void power_update(int fridge_num, bool cool, bool heat) {
 }
 
 
+/// @brief Determines whether a fridge requires cooling.
+/// @param set_value the target temperature (internal integer representation)
+/// @param cool_offset_value the maximum difference between the beer and the air temperature
+/// @param beer_temp the current beer temperature
+/// @param air_temp the current air temperature
+/// @return true if cooling is required, otherwise false
 bool cooling_needed (int set_value, int cool_offset_value, float beer_temp, float air_temp) {
     float set_temp = set_value / 10.0;  // the UI stores the settings values as integers
     float min_temp = beer_temp - cool_offset_value / 10.0;
@@ -146,6 +152,12 @@ bool cooling_needed (int set_value, int cool_offset_value, float beer_temp, floa
 }
 
 
+/// @brief Determines whether a fridge requires heating.
+/// @param set_value the target temperature (internal integer representation)
+/// @param heat_offset_value the maximum difference between the beer and the heater temperature
+/// @param beer_temp the current beer temperature
+/// @param heater_temp the current heater temperature
+/// @return true if heating is required, otherwise false
 bool heating_needed (int set_value, int heat_offset_value, float beer_temp, float heater_temp) {
     float set_temp = set_value / 10.0;  // the UI stores the settings values as integers
     float max_temp = beer_temp + heat_offset_value / 10.0;
