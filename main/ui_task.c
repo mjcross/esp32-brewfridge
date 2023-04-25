@@ -16,6 +16,7 @@
 #include "lcd.h"
 #include "sensor_task.h"
 #include "power.h"
+#include "flash.h"
 
 
 #define COL_1   0                   // dislay column positions
@@ -52,16 +53,6 @@ enum ui_event_t {
     UI_EVENT_TIMEOUT,
     UI_EVENT_SLEEP,
     UI_EVENT_NEW_TEMP_DATA
-};
-
-struct sensor_field_t {
-    const char title[5];
-    const int title_x;
-    const int title_y;
-    const int data_x;
-    const int data_y;
-    ds18x20_addr_t addr;
-    float temp;
 };
 
 struct set_field_t {
@@ -145,13 +136,13 @@ static const enum ui_mode_t next_state_timeout[] = {
 #define F2_SENSOR_AIR   4
 #define F2_SENSOR_HEAT  5
 static struct sensor_field_t sensor_field[] = {
-    // title[5], title_x, title_y, data_x, data_y, romcode, value
-    { "beer",   COL_1, 1, COL_2, 1, 0, UNDEFINED_TEMP },
-    { "air",    COL_1, 2, COL_2, 2, 0, UNDEFINED_TEMP },
-    { "heat",   COL_1, 3, COL_2, 3, 0, UNDEFINED_TEMP },
-    { "beer",   COL_3, 1, COL_4, 1, 0, UNDEFINED_TEMP },
-    { "air",    COL_3, 2, COL_4, 2, 0, UNDEFINED_TEMP },
-    { "heat",   COL_3, 3, COL_4, 3, 0, UNDEFINED_TEMP }
+    //  title[5],   title_x,    title_y,    data_x, data_y, addr,   value
+    {   "beer",     COL_1,      1,          COL_2,  1,      0ull,   UNDEFINED_TEMP },   // F1_SENSOR_BEER
+    {   "air",      COL_1,      2,          COL_2,  2,      0ull,   UNDEFINED_TEMP },   // F1_SENSOR_AIR
+    {   "heat",     COL_1,      3,          COL_2,  3,      0ull,   UNDEFINED_TEMP },   // F1_SENSOR_HEAT
+    {   "beer",     COL_3,      1,          COL_4,  1,      0ull,   UNDEFINED_TEMP },   // F2_SENSOR_BEER
+    {   "air",      COL_3,      2,          COL_4,  2,      0ull,   UNDEFINED_TEMP },   // F2_SENSOR_AIR
+    {   "heat",     COL_3,      3,          COL_4,  3,      0ull,   UNDEFINED_TEMP }    // F2_SENSOR_HEAT
 };
 
 // screen positions of the settings fields
@@ -169,13 +160,13 @@ static struct sensor_field_t sensor_field[] = {
 #define F1_HEAT 4
 #define F2_HEAT 5
 static struct set_field_t set_field[] = {
-    // title[6], title_x, title_y, data_x, data_y, value
-    { "set",    COL_1, 1, COL_2, 1, UNDEFINED_TEMP },
-    { "set",    COL_3, 1, COL_4, 1, UNDEFINED_TEMP },
-    { "cool-",  COL_1, 2, COL_2, 2, UNDEFINED_TEMP },
-    { "cool-",  COL_3, 2, COL_4, 2, UNDEFINED_TEMP },
-    { "heat+",  COL_1, 3, COL_2, 3, UNDEFINED_TEMP },
-    { "heat+",  COL_3, 3, COL_4, 3, UNDEFINED_TEMP }
+    //  title[6],   title_x,    title_y,    data_x, data_y, value
+    {   "set",      COL_1,      1,          COL_2,  1,      UNDEFINED_TEMP },   // F1_SET
+    {   "set",      COL_3,      1,          COL_4,  1,      UNDEFINED_TEMP },   // F2_SET
+    {   "cool-",    COL_1,      2,          COL_2,  2,      UNDEFINED_TEMP },   // F1_COOL
+    {   "cool-",    COL_3,      2,          COL_4,  2,      UNDEFINED_TEMP },   // F2_COOL
+    {   "heat+",    COL_1,      3,          COL_2,  3,      UNDEFINED_TEMP },   // F1_HEAT
+    {   "heat+",    COL_3,      3,          COL_4,  3,      UNDEFINED_TEMP }    // F2_HEAT
 };
 
 static const char power_state_indicator[] = {
@@ -199,6 +190,7 @@ static struct temp_data_t temp_data;
 static int blink_x;
 static int blink_y;
 static bool blink_enabled;
+static bool sensor_addresses_changed = false;
 
 
 // function definitions
@@ -373,6 +365,10 @@ static void new_mode(void) {
             }
             status_display_sensor_temps();
             addr = 0;
+            if (sensor_addresses_changed) {     // write new sensor addresses to non-volatile storage
+                write_sensor_addresses (sensor_field, num_sensor_fields);
+                sensor_addresses_changed = false;
+            }
             break;
 
         case UI_MODE_SET_1:
@@ -481,7 +477,7 @@ static void set_field_value_change(int i, int diff) {
 }
 
 
-/// @brief Changes the sensor associated with a field.
+/// @brief Changes the sensor associated with a field, and flags the flash as needing an update.
 ///
 /// This is called by ui_event_handler() in response to a RE_ET_CHANGED
 /// event when the UI is in a 'sensor' mode, eg. UI_MODE_SENSOR_1.
@@ -493,7 +489,7 @@ static void sensor_addr_change(int i, int diff) {
     int sensor_index = find_sensor(addr);
     sensor_index = (sensor_index + diff) % (int)temp_data.num_sensors;
     if (sensor_index < 0) {
-        sensor_index += temp_data.num_sensors;
+        sensor_index += temp_data.num_sensors;  // user moved backwards - wrap around
     }
     addr = temp_data.addr[sensor_index];
     sensor_field[i].addr = addr;
@@ -501,6 +497,7 @@ static void sensor_addr_change(int i, int diff) {
     blink_y = (sensor_index / 4) + 1;
     lcd_hide(blink_x, blink_y, 4);
     timeout_count = 0;
+    sensor_addresses_changed = true;  // update the non-volatile storage when we return to MODE_STATUS
 }
 
 
@@ -627,7 +624,8 @@ void ui_task(void *pParams) {
     //
     lcd_init();
     encoder_init();
-    new_mode(); // set up the first screen
+    read_sensor_addresses(sensor_field, num_sensor_fields);  // load 1-Wire addresses from flash
+    new_mode();     // set up the first screen
 
     // repeat the event loop forever
     //

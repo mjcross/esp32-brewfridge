@@ -1,0 +1,10 @@
+{
+    "configurations": [
+        {
+            "name": "ESP-IDF",
+            "configurationProvider": "ms-vscode.cmake-tools",
+            "compilerPath": "/Users/martin/.espressif/tools/xtensa-esp32-elf/esp-2022r1-11.2.0/xtensa-esp32-elf/bin/xtensa-esp32-elf-gcc"
+        }
+    ],
+    "version": 4
+}
