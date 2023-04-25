@@ -128,7 +128,6 @@ bool cooling_needed (int set_value, int cool_offset_value, float beer_temp, floa
     float set_temp = set_value / 10.0;  // the UI stores the settings values as integers
     float min_temp = beer_temp - cool_offset_value / 10.0;
 
-    bool set_temp_defined = (set_value != UNDEFINED_TEMP);
     bool min_temp_defined = (cool_offset_value != UNDEFINED_TEMP);
     bool air_sensor_connected = (air_temp != UNDEFINED_TEMP);
     bool beer_sensor_connected = (beer_temp != UNDEFINED_TEMP);
