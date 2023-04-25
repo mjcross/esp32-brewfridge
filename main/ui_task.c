@@ -22,7 +22,6 @@
 #define COL_2   5
 #define COL_3   11
 #define COL_4   16
-#define FIELD_INDICATOR_CHR 0x7e    // 0x7e = right-pointing arrow
 
 
 // type definitions
@@ -35,6 +34,8 @@ enum ui_mode_t {
     UI_MODE_SET_2,
     UI_MODE_SET_3,
     UI_MODE_SET_4,
+    UI_MODE_SET_5,
+    UI_MODE_SET_6,
     UI_MODE_SENSOR_1,
     UI_MODE_SENSOR_2,
     UI_MODE_SENSOR_3,
@@ -64,7 +65,7 @@ struct sensor_field_t {
 };
 
 struct set_field_t {
-    const char title[5];
+    const char title[6];
     const int title_x;
     const int title_y;
     const int data_x;
@@ -83,7 +84,9 @@ static const enum ui_mode_t next_state_btn_press[] = {
     UI_MODE_SET_2,                  // set_1 -> set_2
     UI_MODE_SET_3,                  // set_2 -> set_3
     UI_MODE_SET_4,                  // set_3 -> set_4
-    UI_MODE_SET_1,                  // set_4 -> set_1
+    UI_MODE_SET_5,                  // set_4 -> set_5
+    UI_MODE_SET_6,                  // set_5 -> set_6
+    UI_MODE_SET_1,                  // set_6 -> set_1
     UI_MODE_SENSOR_2,               // sensor_1 -> sensor_2
     UI_MODE_SENSOR_3,               // sensor_2 -> sensor_3
     UI_MODE_SENSOR_4,               // sensor_3 -> sensor_4
@@ -100,7 +103,9 @@ static const enum ui_mode_t next_state_long_press[] = {
     UI_MODE_STATUS,                 // set_2 -> status
     UI_MODE_STATUS,                 // set_3 -> status
     UI_MODE_STATUS,                 // set_4 -> status
-    UI_MODE_STATUS,                 // sensor_1 -> status
+    UI_MODE_STATUS,                 // set_5 -> status
+    UI_MODE_STATUS,                 // set_6 -> status
+    UI_MODE_STATUS,                 // sensor_1 -> status       // todo: save sensor addresses
     UI_MODE_STATUS,                 // sensor_2 -> status
     UI_MODE_STATUS,                 // sensor_3 -> status
     UI_MODE_STATUS,                 // sensor_4 -> status
@@ -115,7 +120,9 @@ static const enum ui_mode_t next_state_timeout[] = {
     UI_MODE_STATUS,                 // set_2 -> status
     UI_MODE_STATUS,                 // set_3 -> status
     UI_MODE_STATUS,                 // set_4 -> status
-    UI_MODE_STATUS,                 // sensor_1 -> status
+    UI_MODE_STATUS,                 // set_5 -> status
+    UI_MODE_STATUS,                 // set_6 -> status
+    UI_MODE_STATUS,                 // sensor_1 -> status       // todo: save sensor addresses
     UI_MODE_STATUS,                 // sensor_2 -> status
     UI_MODE_STATUS,                 // sensor_3 -> status
     UI_MODE_STATUS,                 // sensor_4 -> status
@@ -123,27 +130,61 @@ static const enum ui_mode_t next_state_timeout[] = {
     UI_MODE_STATUS                  // sensor_6 -> status
 };
 
+// screen positions of the temperature sensor fields
+// 
+//      01234567890123456789
+//      |    |     |    |
+// 0    FRIDGE *1  FRIDGE +2
+// 1    beer 12.3  beer 12.3
+// 2    air  10.0  air  10.0
+// 3    heat 12.3  heat 12.3
+#define F1_SENSOR_BEER  0
+#define F1_SENSOR_AIR   1
+#define F1_SENSOR_HEAT  2
+#define F2_SENSOR_BEER  3
+#define F2_SENSOR_AIR   4
+#define F2_SENSOR_HEAT  5
 static struct sensor_field_t sensor_field[] = {
-    { "air",  COL_1, 1, COL_2, 1, 0, UNDEFINED_TEMP },
-    { "keg1", COL_1, 2, COL_2, 2, 0, UNDEFINED_TEMP },
-    { "keg2", COL_1, 3, COL_2, 3, 0, UNDEFINED_TEMP },
-    { "air",  COL_3, 1, COL_4, 1, 0, UNDEFINED_TEMP },
-    { "keg1", COL_3, 2, COL_4, 2, 0, UNDEFINED_TEMP },
-    { "keg2", COL_3, 3, COL_4, 3, 0, UNDEFINED_TEMP }
+    // title[5], title_x, title_y, data_x, data_y, romcode, value
+    { "beer",   COL_1, 1, COL_2, 1, 0, UNDEFINED_TEMP },
+    { "air",    COL_1, 2, COL_2, 2, 0, UNDEFINED_TEMP },
+    { "heat",   COL_1, 3, COL_2, 3, 0, UNDEFINED_TEMP },
+    { "beer",   COL_3, 1, COL_4, 1, 0, UNDEFINED_TEMP },
+    { "air",    COL_3, 2, COL_4, 2, 0, UNDEFINED_TEMP },
+    { "heat",   COL_3, 3, COL_4, 3, 0, UNDEFINED_TEMP }
 };
 
+// screen positions of the settings fields
+// 
+//      01234567890123456789
+//      |    |     |    |
+// 0    FRIDGE +1  FRIDGE *2
+// 1    set	 12.3  set  12.3
+// 2    cool- 4.5  cool- off
+// 3    heat+ off  heat+ 2.0
+#define F1_SET  0
+#define F2_SET  1
+#define F1_COOL 2
+#define F2_COOL 3
+#define F1_HEAT 4
+#define F2_HEAT 5
 static struct set_field_t set_field[] = {
-    { "set", COL_1, 1, COL_2, 1, UNDEFINED_TEMP },
-    { "min", COL_1, 2, COL_2, 2, UNDEFINED_TEMP },
-    { "set", COL_3, 1, COL_4, 1, UNDEFINED_TEMP },
-    { "min", COL_3, 2, COL_4, 2, UNDEFINED_TEMP }
+    // title[6], title_x, title_y, data_x, data_y, value
+    { "set",    COL_1, 1, COL_2, 1, UNDEFINED_TEMP },
+    { "set",    COL_3, 1, COL_4, 1, UNDEFINED_TEMP },
+    { "cool-",  COL_1, 2, COL_2, 2, UNDEFINED_TEMP },
+    { "cool-",  COL_3, 2, COL_4, 2, UNDEFINED_TEMP },
+    { "heat+",  COL_1, 3, COL_2, 3, UNDEFINED_TEMP },
+    { "heat+",  COL_3, 3, COL_4, 3, UNDEFINED_TEMP }
 };
 
 static const char power_state_indicator[] = {
-    '*',    // pwr_on
-    '-',    // pwr_on_pending
     ' ',    // pwr_off
-    '+',    // pwr_off_pending
+    '-',    // pwr_cool_requested
+    '*',    // pwr_cooling
+    '.',    // pwr_cool_overrun
+    '+',    // pwr_heat_requested
+    '^'     // pwr_heating
 };
 
 static const int num_sensor_fields = sizeof(sensor_field) / sizeof(struct sensor_field_t);
@@ -157,26 +198,33 @@ static int timeout_count;
 static struct temp_data_t temp_data;
 static int blink_x;
 static int blink_y;
-bool blink_enabled;
+static bool blink_enabled;
 
 
 // function definitions
 // --------------------
 
+
+/// @brief Converts the internal integer representation of a temperature into a string. 
+/// @param buf Where to store the string.
+/// @param buflen Space available to store the string and terminating '\0'.
+/// @param temp The internal integer representation of a temperature.
 static void value_to_temp_str(char *buf, size_t buflen, int temp) {
     if (temp == UNDEFINED_TEMP) {
-        snprintf(buf, buflen, "--.-");
+        snprintf(buf, buflen, " off");
     } else {
         snprintf(buf, buflen, "%4.1f", temp / 10.0);
     }
 }
 
 
+/// @brief Displays the current temperatures of all the sensors.
+/// @param void
 static void status_display_sensor_temps(void) {
     for (int i = 0; i < num_sensor_fields; i += 1) {
         lcd_gotoxy(sensor_field[i].data_x, sensor_field[i].data_y);
         if (sensor_field[i].temp == UNDEFINED_TEMP) {
-            lcd_puts("--.-");
+            lcd_puts(" off");
         } else {
             snprintf(buf, sizeof(buf), "%4.1f", sensor_field[i].temp);
             lcd_puts(buf);
@@ -185,6 +233,8 @@ static void status_display_sensor_temps(void) {
 }
 
 
+/// @brief Initialises the driver for the control knob (rotary encoder).
+/// @param  void 
 static void encoder_init(void) {
     encoder_event_queue = xQueueCreate(RE_EVENT_QUEUE_SIZE, sizeof(rotary_encoder_event_t));
     ESP_ERROR_CHECK(rotary_encoder_init(encoder_event_queue));
@@ -198,6 +248,12 @@ static void encoder_init(void) {
 }
 
 
+/// @brief Finds the index of a sensor from its address.
+///
+/// Used to highlight the current choice while the user is choosing a sensor.
+///
+/// @param addr the sensor address (64 bit romcode)
+/// @return the index of the sensor in the array or zero if it wasn't found
 static int find_sensor(ds18x20_addr_t addr) {
     int i;
     for (i = 0; i < temp_data.num_sensors; i += 1) {
@@ -213,16 +269,18 @@ static int find_sensor(ds18x20_addr_t addr) {
 }
 
 
-static void show_sensors() {
+/// @brief Displays a list of connected sensors.
+static void show_sensors(void) {
     bool addr_found = false;
 
-    // show temps for attached sensors
+    // show abbreviated romcodes of attached sensors
     for (int i = 0; i < temp_data.num_sensors; i += 1) {
         lcd_gotoxy((i % 4) * 5, (i / 4) + 1);
         if (i == 0) {
-            lcd_puts("--.-");
+            lcd_puts(" off");
         } else {
-            snprintf(buf, sizeof(buf), "%4.1f", temp_data.temp[i]);
+            // show CRC and most significant address byte
+            snprintf(buf, sizeof(buf), "%04x", (uint16_t)(temp_data.addr[i] >> (64 - 16)));
             lcd_puts(buf);
         }
         if (temp_data.addr[i] == addr) {
@@ -247,6 +305,8 @@ static void show_sensors() {
 }
 
 
+/// @brief Sets up the display for the user to start changing a setting.
+/// @param i the index of the new setting, eg. F1_SET
 void new_mode_set(int i) {
     i -= 1;
     lcd_restore();
@@ -258,15 +318,17 @@ void new_mode_set(int i) {
 }
 
 
+/// @brief Sets up the display for the user to start choosing the sensor for a field.
+/// @param i the index of the sensor field, eg. F1_SENSOR_BEER
 void new_mode_sensor(int i) {
     i -= 1;
     lcd_gotoxy(0, 0);
 
     lcd_puts(sensor_field[i].title);
     if (i < 3) {
-        lcd_puts(" fridge 1 ");
+        lcd_puts(" FRIDGE 1 ");
     } else {
-        lcd_puts(" fridge 2 ");
+        lcd_puts(" FRIDGE 2 ");
     }
 
     addr = sensor_field[i].addr;
@@ -277,7 +339,11 @@ void new_mode_sensor(int i) {
 }
 
 
-static void new_mode() {
+/// @brief Updates the display and UI state for a new UI mode.
+///
+/// The new mode (eg. UI_MODE_SLEEP) is held in the global 'mode'.
+///
+static void new_mode(void) {
     blink_enabled = false;
     switch (mode) {
         case UI_MODE_SPLASH:
@@ -295,6 +361,7 @@ static void new_mode() {
             break;
 
         case UI_MODE_STATUS:
+            // todo: if 'sensor address changed' then save sensors
             lcd_clear();
             lcd_switch_backlight(true);
             blink_enabled = false;
@@ -318,7 +385,7 @@ static void new_mode() {
                 value_to_temp_str(buf, sizeof(buf), set_field[i].value);
                 lcd_puts(buf);
             }
-            new_mode_set(1);
+            new_mode_set(1);        // highlight the first setting field
             break;
 
         case UI_MODE_SET_2:
@@ -333,10 +400,18 @@ static void new_mode() {
             new_mode_set(4);
             break;
 
+        case UI_MODE_SET_5:
+            new_mode_set(5);
+            break;
+
+        case UI_MODE_SET_6:
+            new_mode_set(6);
+            break;
+
         case UI_MODE_SENSOR_1:
             lcd_clear();
-            new_mode_sensor(1);
-            break;
+            new_mode_sensor(1);     // display the title for the first field, show the list of
+            break;                  // connected sensors and highlight the current choice
 
         case UI_MODE_SENSOR_2:
             new_mode_sensor(2);
@@ -365,6 +440,11 @@ static void new_mode() {
 }
 
 
+/// @brief Updates the temperature fields from a set of sensor readings.
+///
+/// Any fields without a reading are set to UNDEFINED_TEMP 
+///
+/// @param pTemp an array of sensor readings
 static void update_sensor_temps(struct temp_data_t *pTemp) {
     for (int f = 0; f < num_sensor_fields; f += 1) {
         sensor_field[f].temp = UNDEFINED_TEMP;
@@ -379,18 +459,35 @@ static void update_sensor_temps(struct temp_data_t *pTemp) {
 }
 
 
+/// @brief Changes a setting by a certain amount.
+///
+/// This is called by ui_event_handler() in response to a RE_ET_CHANGED
+/// event when the UI is in a 'set' mode, eg. UI_MODE_SET_1.
+/// 
+/// @param i the index of the setting to be changed, eg. F1_SET
+/// @param diff the amount to change from the current value.
 static void set_field_value_change(int i, int diff) {
     if (set_field[i].value == UNDEFINED_TEMP) {
         set_field[i].value = 0;
     }
     set_field[i].value += diff;
+    if (set_field[i].value < 0) {
+        set_field[i].value = UNDEFINED_TEMP;
+    }
     lcd_gotoxy(set_field[i].data_x, set_field[i].data_y);
     value_to_temp_str(buf, sizeof(buf), set_field[i].value);
     lcd_puts(buf);
-    timeout_count = 2;
+    timeout_count = 2;      // reset the inactivity timer
 }
 
 
+/// @brief Changes the sensor associated with a field.
+///
+/// This is called by ui_event_handler() in response to a RE_ET_CHANGED
+/// event when the UI is in a 'sensor' mode, eg. UI_MODE_SENSOR_1.
+///
+/// @param i the index of the field being chosen, eg. F1_SENSOR_BEER
+/// @param diff the number of positions to move forward or backward in the sensor list.
 static void sensor_addr_change(int i, int diff) {
     i -= 1;
     int sensor_index = find_sensor(addr);
@@ -407,6 +504,9 @@ static void sensor_addr_change(int i, int diff) {
 }
 
 
+/// @brief Handles each different type of UI event.
+/// @param event the event, eg. UI_EVENT_NEW_TEMP_DATA
+/// @param value_change the parameter associated with the event (if any).
 static void ui_event_handler(enum ui_event_t event, int value_change) {
     switch(event) {
         case UI_EVENT_BTN_PRESS:
@@ -445,6 +545,14 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
 
                 case UI_MODE_SET_4:
                     set_field_value_change(3, value_change);
+                    break;
+
+                case UI_MODE_SET_5:
+                    set_field_value_change(4, value_change);
+                    break;
+
+                case UI_MODE_SET_6:
+                    set_field_value_change(5, value_change);
                     break;
 
                 case UI_MODE_SENSOR_1:
@@ -508,58 +616,59 @@ static void ui_event_handler(enum ui_event_t event, int value_change) {
 }
 
 
-static void control_fridges() {
-    // control fride 1
-    if (cooling_needed(set_field[0].value,          // fridge 1 set
-                       set_field[1].value,          // fridge 1 min
-                       sensor_field[0].temp,        // fridge 1 air
-                       sensor_field[1].temp)) {     // fridge 1 keg1
-        f1_power_on();
-    } else {
-        f1_power_off();
-    }
-
-    // control fridge 2
-    if (cooling_needed(set_field[2].value,          // fridge 2 set
-                       set_field[3].value,          // fridge 2 min
-                       sensor_field[3].temp,        // fridge 2 air
-                       sensor_field[4].temp)) {     // fridge 2 keg1
-        f2_power_on();
-    } else {
-        f2_power_off();
-    }
-
-    // display the fridge power state indicators (if appropriate)
-    if (mode == UI_MODE_STATUS ||
-        mode == UI_MODE_SET_1 ||
-        mode == UI_MODE_SET_2 ||
-        mode == UI_MODE_SET_3 ||
-        mode == UI_MODE_SET_4) {
-            // 01234567890123456789
-            // FRIDGE *1  FRIDGE *2
-            lcd_gotoxy(7, 0);
-            lcd_putc(power_state_indicator[f1_state]);
-            lcd_gotoxy(18, 0);
-            lcd_putc(power_state_indicator[f2_state]);
-    }
-}
-
-
+/// @brief Prepares the UI and continually runs the event loop.
+/// @param pParams the parameters passed by xTaskCreate(): not used.
 void ui_task(void *pParams) {
     rotary_encoder_event_t e;
+    static int long_timeout_count;
+    static int sleep_timeout_count;
 
+    // prepare the UI
+    //
     lcd_init();
     encoder_init();
     new_mode(); // set up the first screen
 
-    static int long_timeout_count;
-    static int sleep_timeout_count;
-
-    // UI event loop
+    // repeat the event loop forever
     //
     for(;;) {
-        // always apply thermostat control
-        control_fridges();
+        // update the power state of the fridges
+        //
+        power_update (
+            0,      // fridge 1 
+            cooling_needed(
+                set_field[F1_SET].value,
+                set_field[F1_COOL].value,
+                sensor_field[F1_SENSOR_BEER].temp,
+                sensor_field[F1_SENSOR_AIR].temp),
+            heating_needed(
+                set_field[F1_SET].value,
+                set_field[F1_HEAT].value,
+                sensor_field[F1_SENSOR_BEER].temp,
+                sensor_field[F1_SENSOR_HEAT].temp));
+
+        power_update (
+            1,      // fridge 2 
+            cooling_needed(
+                set_field[F2_SET].value,
+                set_field[F2_COOL].value,
+                sensor_field[F2_SENSOR_BEER].temp,
+                sensor_field[F2_SENSOR_AIR].temp),
+            heating_needed(
+                set_field[F2_SET].value,
+                set_field[F2_HEAT].value,
+                sensor_field[F2_SENSOR_BEER].temp,
+                sensor_field[F2_SENSOR_HEAT].temp));
+
+        // display the fridge power state indicators, if not in SLEEP or a SENSOR mode
+        if (mode >= UI_MODE_STATUS && mode < UI_MODE_SENSOR_1) {
+                //      01234567890123456789
+                //      FRIDGE *1  FRIDGE ^2
+                lcd_gotoxy(7, 0);
+                lcd_putc(power_state_indicator[power_state[0]]);
+                lcd_gotoxy(18, 0);
+                lcd_putc(power_state_indicator[power_state[1]]);
+        }
 
         // wait up to `UI_BLINK_MS` for an event from the rotary encoder
         //

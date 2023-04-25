@@ -3,7 +3,7 @@
 #define LOG_TAG                 "brewfridge"
 
 #define ONEWIRE_GPIO            17
-#define MAX_TEMP_SENSORS        12        // UI can show three rows of four
+#define MAX_TEMP_SENSORS        12      // LCD can show three rows of four
 
 // LCD display
 //
@@ -20,7 +20,7 @@
 
 // UI
 //
-#define UI_BLINK_MS             250      // timeout on temp setting mode
+#define UI_BLINK_MS             250     // timeout on temp setting mode
 #define UI_BLINKS_PER_FLASH     4
 #define UI_BLINKS_PER_TIMEOUT   30
 #define UI_BLINKS_PER_SLEEP     400
@@ -30,4 +30,11 @@
 //
 #define F1_RELAY_GPIO           32
 #define F2_RELAY_GPIO           33
-#define RELAY_INTERVAL_MS       30000     // minimum cooling on/off time
+#define F1_SSR_GPIO             18
+#define F2_SSR_GPIO             19
+
+
+// power control timeouts in ms
+#define MIN_OFF_TIME            (2 * 60 * 1000)     // 2 mins recovery time after heating/cooling
+#define MIN_COOLING_TIME        (30 * 1000)         // keep fridge on for at least 30 sec
+#define MAX_COOLING_TIME        (60 * 60 * 1000)    // run fridge for max 1hr at a time

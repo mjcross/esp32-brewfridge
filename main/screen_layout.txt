@@ -1,0 +1,13 @@
+01234567890123456789
++----+----+----+----
+FRIDGE *1  FRIDGE +2
+beer 12.3  beer 12.3
+air  10.0  air  10.0
+heat 12.3  heat 12.3
+
+01234567890123456789
++----+----+----+----
+FRIDGE  1  FRIDGE *2
+set	 12.3  set  12.3
+cool- 4.5  cool- off
+heat+ off  heat+ 2.0

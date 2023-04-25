@@ -15,6 +15,7 @@ const char* TAG = LOG_TAG;
 
 void app_main()
 {
+    puts("OK");
     power_init();
 
     temperature_queue = xQueueCreate(1, sizeof(void *));
