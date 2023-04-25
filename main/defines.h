@@ -30,12 +30,11 @@
 //
 #define F1_RELAY_GPIO           32
 #define F2_RELAY_GPIO           33
-#define F1_SSR_GPIO             32   //! fixme
-#define F2_SSR_GPIO             33   //! fixme
-#define F1_
+#define F1_SSR_GPIO             18
+#define F2_SSR_GPIO             19
 
 
 // power control timeouts in ms
 #define MIN_OFF_TIME            (2 * 60 * 1000)     // 2 mins recovery time after heating/cooling
-#define MIN_COOLING_TIME        (30 * 1000)         // run fridge for at least 30 sec each time
+#define MIN_COOLING_TIME        (30 * 1000)         // keep fridge on for at least 30 sec
 #define MAX_COOLING_TIME        (60 * 60 * 1000)    // run fridge for max 1hr at a time

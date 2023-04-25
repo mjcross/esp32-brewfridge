@@ -182,7 +182,7 @@ static const char power_state_indicator[] = {
     ' ',    // pwr_off
     '-',    // pwr_cool_requested
     '*',    // pwr_cooling
-    '.',    // pwr_overrun
+    '.',    // pwr_cool_overrun
     '+',    // pwr_heat_requested
     '^'     // pwr_heating
 };
