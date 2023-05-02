@@ -353,7 +353,6 @@ static void new_mode(void) {
             break;
 
         case UI_MODE_STATUS:
-            // todo: if 'sensor address changed' then save sensors
             lcd_clear();
             lcd_switch_backlight(true);
             blink_enabled = false;
