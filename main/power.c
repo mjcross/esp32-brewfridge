@@ -121,32 +121,19 @@ void power_update(int fridge_num, bool cool, bool heat) {
 /// @param air_temp the current air temperature
 /// @return true if cooling is required, otherwise false
 bool cooling_needed (int set_value, int cool_offset_value, float beer_temp, float air_temp) {
-    if (set_value == UNDEFINED_TEMP) {
-        return false;
+    if (set_value == UNDEFINED_TEMP || cool_offset_value == UNDEFINED_TEMP {
+        return false;                   // don't cool if the target temp or cool offset are 'OFF'
     }
 
     float set_temp = set_value / 10.0;  // the UI stores the settings values as integers
     float min_temp = beer_temp - cool_offset_value / 10.0;
 
-    bool min_temp_defined = (cool_offset_value != UNDEFINED_TEMP);
     bool air_sensor_connected = (air_temp != UNDEFINED_TEMP);
     bool beer_sensor_connected = (beer_temp != UNDEFINED_TEMP);
 
-    if (min_temp_defined) {
-        if (air_sensor_connected == false || beer_sensor_connected == false) {
-            return false;               // for min_temp we must have both an air and a beer sensor
-        }
-        return (beer_temp > set_temp && air_temp >= min_temp);
+    if (air_sensor_connected == true && beer_sensor_connected == true) {
+        return (beer_temp > set_temp && air_temp > min_temp);
     }
-
-    if (air_sensor_connected) {         // manage the air temperature only
-        return (air_temp > set_temp);
-    }
-
-    if (beer_sensor_connected) {        // fall back to managing the beer temperature
-        return (beer_temp > set_temp);
-    }
-
     return false;
 }
 
@@ -158,30 +145,18 @@ bool cooling_needed (int set_value, int cool_offset_value, float beer_temp, floa
 /// @param heater_temp the current heater temperature
 /// @return true if heating is required, otherwise false
 bool heating_needed (int set_value, int heat_offset_value, float beer_temp, float heater_temp) {
-    if (set_value == UNDEFINED_TEMP) {
-        return false;
+    if (set_value == UNDEFINED_TEMP || heat_offset_value == UNDEFINED_TEMP) {
+        return false;                   // don't heat if the target temp or heater offset are 'OFF'
     }
 
     float set_temp = set_value / 10.0;  // the UI stores the settings values as integers
     float max_temp = beer_temp + heat_offset_value / 10.0;
 
-    bool max_temp_defined = (heat_offset_value != UNDEFINED_TEMP);
     bool heater_sensor_connected = (heater_temp != UNDEFINED_TEMP);
     bool beer_sensor_connected = (beer_temp != UNDEFINED_TEMP);
 
-    if (max_temp_defined) {
-        if (heater_sensor_connected == false || beer_sensor_connected == false) {
-            return false;               // for max_temp we must have both a heater and a beer sensor
-        }
+    if (heater_sensor_connected == true && beer_sensor_connected == true) {
         return (beer_temp < set_temp && heater_temp < max_temp);
-    }
-
-    if (heater_sensor_connected) {      // manage the heater temperature only
-        return (heater_temp < set_temp);
-    }
-
-    if (beer_sensor_connected) {        // fall back to managing the beer temperature
-        return (beer_temp < set_temp);
     }
 
     return false;
