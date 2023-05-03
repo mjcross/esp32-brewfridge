@@ -35,6 +35,6 @@
 
 
 // power control timeouts in ms
-#define MIN_OFF_TIME            (2 * 60 * 1000)     // 2 mins recovery time after heating/cooling
-#define MIN_COOLING_TIME        (30 * 1000)         // keep fridge on for at least 30 sec
-#define MAX_COOLING_TIME        (60 * 60 * 1000)    // run fridge for max 1hr at a time
+#define MIN_OFF_TIME            (2 * 60 * 1000) / portTICK_PERIOD_MS        // 2 mins recovery time after heating/cooling
+#define MIN_COOLING_TIME        (30 * 1000)  / portTICK_PERIOD_MS           // keep fridge on for at least 30 sec
+#define MAX_COOLING_TIME        (60 * 60 * 1000)  / portTICK_PERIOD_MS      // run fridge for max 1hr at a time
