@@ -121,7 +121,7 @@ void power_update(int fridge_num, bool cool, bool heat) {
 /// @param air_temp the current air temperature
 /// @return true if cooling is required, otherwise false
 bool cooling_needed (int set_value, int cool_offset_value, float beer_temp, float air_temp) {
-    if (set_value == UNDEFINED_TEMP || cool_offset_value == UNDEFINED_TEMP {
+    if (set_value == UNDEFINED_TEMP || cool_offset_value == UNDEFINED_TEMP) {
         return false;                   // don't cool if the target temp or cool offset are 'OFF'
     }
 
